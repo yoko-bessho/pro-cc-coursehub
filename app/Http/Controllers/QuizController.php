@@ -26,13 +26,13 @@ class QuizController extends Controller
         $correctCount = 0;
         foreach ($quiz->questions as $question) {
             $userAnswer = collect($answers)->firstWhere('question_id', $question->id);
-            $selectedOption = Option::find($userAnswer['option_id']);
+            $selectedOption = Option::find($userAnswer['option_id'] ?? null);
             if ($selectedOption && $selectedOption->is_correct) {
                 $correctCount++;
             }
         }
 
-        $score = (int) round($correctCount / $quiz->questions->count() * 100);
+        $score = $quiz->questions->isEmpty() ? 0 : (int) round($correctCount / $quiz->questions->count() * 100);
 
         $submission = Submission::create([
             'user_id' => auth()->id(),
