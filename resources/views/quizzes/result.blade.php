@@ -55,8 +55,27 @@
             @endforeach
         </div>
 
+        {{-- 受験履歴 --}}
+        @if($submissions->count() > 1)
+            <div class="mt-8">
+                <h2 class="text-lg font-bold text-gray-900 mb-3">受験履歴</h2>
+                <div class="border border-gray-200 rounded-xl divide-y divide-gray-100 overflow-hidden">
+                    @foreach($submissions as $pastSubmission)
+                        <div class="flex items-center justify-between px-4 py-3 {{ $pastSubmission->id === $submission->id ? 'bg-indigo-50' : 'bg-white' }}">
+                            <span class="text-sm text-gray-600">{{ $pastSubmission->submitted_at->format('Y/m/d H:i') }}</span>
+                            <span class="text-sm font-medium {{ $pastSubmission->score >= $quiz->passing_score ? 'text-green-600' : 'text-red-600' }}">
+                                {{ $pastSubmission->score }}%（{{ $pastSubmission->score >= $quiz->passing_score ? '合格' : '不合格' }}）
+                            </span>
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+        @endif
+
         <div class="mt-8 flex flex-wrap gap-3">
-            <a href="{{ route('courses.quizzes.show', [$course, $quiz]) }}" class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg px-4 py-2.5 shadow-sm transition-all duration-150">再受験する</a>
+            @if($canRetake)
+                <a href="{{ route('courses.quizzes.show', [$course, $quiz]) }}" class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg px-4 py-2.5 shadow-sm transition-all duration-150">再受験する</a>
+            @endif
             <a href="{{ route('courses.show', $course) }}" class="bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 font-medium rounded-lg px-4 py-2.5 transition-all duration-150">コースに戻る</a>
         </div>
     </div>
