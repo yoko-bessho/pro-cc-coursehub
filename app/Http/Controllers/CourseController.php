@@ -2,8 +2,9 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Course;
 use App\Models\Category;
+use App\Models\Course;
+use App\Models\Review;
 use Illuminate\Http\Request;
 
 class CourseController extends Controller
@@ -18,7 +19,7 @@ class CourseController extends Controller
             $search = $request->input('search');
             $query->where(function ($q) use ($search) {
                 $q->where('title', 'like', "%{$search}%")
-                  ->orWhere('description', 'like', "%{$search}%");
+                    ->orWhere('description', 'like', "%{$search}%");
             });
         }
 
@@ -51,6 +52,12 @@ class CourseController extends Controller
                 ->first();
         }
 
-        return view('courses.show', compact('course', 'enrollment'));
+        $canViewReviews = auth()->user()->can('viewAny', [Review::class, $course]);
+        $canReview = auth()->user()->can('create', [Review::class, $course]);
+        $reviews = $canViewReviews
+            ? $course->reviews()->with('user')->latest()->get()
+            : collect();
+
+        return view('courses.show', compact('course', 'enrollment', 'reviews', 'canViewReviews', 'canReview'));
     }
 }
