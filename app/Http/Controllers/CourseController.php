@@ -45,15 +45,17 @@ class CourseController extends Controller
         // コース関連データを一括取得
         $course->load('chapters.lessons', 'user', 'category', 'tags');
 
+        $user = auth()->user();
+
         $enrollment = null;
-        if (auth()->user()->isStudent()) {
+        if ($user->isStudent()) {
             $enrollment = $course->enrollments()
-                ->where('user_id', auth()->id())
+                ->where('user_id', $user->id)
                 ->first();
         }
 
-        $canViewReviews = auth()->user()->can('viewAny', [Review::class, $course]);
-        $canReview = auth()->user()->can('create', [Review::class, $course]);
+        $canViewReviews = $user->can('viewAny', [Review::class, $course]);
+        $canReview = $user->can('create', [Review::class, $course]);
         $reviews = $canViewReviews
             ? $course->reviews()->with('user')->latest()->get()
             : collect();

@@ -3,7 +3,6 @@
 namespace App\Policies;
 
 use App\Models\Course;
-use App\Models\Enrollment;
 use App\Models\User;
 
 class ReviewPolicy
@@ -32,7 +31,7 @@ class ReviewPolicy
             return false;
         }
 
-        return Enrollment::where('user_id', $user->id)
+        return $user->enrollments()
             ->where('course_id', $course->id)
             ->where('status', 'completed')
             ->exists();
