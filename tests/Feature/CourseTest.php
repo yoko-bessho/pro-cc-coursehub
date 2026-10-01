@@ -7,6 +7,8 @@ use App\Models\Course;
 use App\Models\Tag;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class CourseTest extends TestCase
@@ -71,6 +73,86 @@ class CourseTest extends TestCase
         $this->assertDatabaseHas('courses', [
             'title' => 'テストコース',
             'user_id' => $this->coach->id,
+        ]);
+    }
+
+    public function test_coach_can_create_course_with_image(): void
+    {
+        Storage::fake('public');
+
+        $image = UploadedFile::fake()->image('course.jpg');
+
+        $response = $this->actingAs($this->coach)->post('/coach/courses', [
+            'title' => '画像付きコース',
+            'category_id' => $this->category->id,
+            'description' => 'テストコースの説明文です。',
+            'difficulty' => 'beginner',
+            'status' => 'draft',
+            'image' => $image,
+        ]);
+
+        $response->assertRedirect('/coach/courses');
+
+        $course = Course::where('title', '画像付きコース')->first();
+        $this->assertNotNull($course->image_path);
+        Storage::disk('public')->assertExists($course->image_path);
+    }
+
+    public function test_published_at_is_set_when_status_is_published(): void
+    {
+        $response = $this->actingAs($this->coach)->post('/coach/courses', [
+            'title' => '公開コース',
+            'category_id' => $this->category->id,
+            'description' => 'テストコースの説明文です。',
+            'difficulty' => 'beginner',
+            'status' => 'published',
+        ]);
+
+        $response->assertRedirect('/coach/courses');
+
+        $course = Course::where('title', '公開コース')->first();
+        $this->assertNotNull($course->published_at);
+    }
+
+    public function test_coach_can_sync_existing_tags_when_creating_course(): void
+    {
+        $tags = Tag::factory()->count(2)->create();
+
+        $response = $this->actingAs($this->coach)->post('/coach/courses', [
+            'title' => 'タグ付きコース',
+            'category_id' => $this->category->id,
+            'description' => 'テストコースの説明文です。',
+            'difficulty' => 'beginner',
+            'status' => 'draft',
+            'tags' => $tags->pluck('id')->toArray(),
+        ]);
+
+        $response->assertRedirect('/coach/courses');
+
+        $course = Course::where('title', 'タグ付きコース')->first();
+        $this->assertEqualsCanonicalizing(
+            $tags->pluck('id')->toArray(),
+            $course->tags()->pluck('tags.id')->toArray()
+        );
+    }
+
+    public function test_initial_chapter_is_created_when_creating_course(): void
+    {
+        $response = $this->actingAs($this->coach)->post('/coach/courses', [
+            'title' => '初期チャプターコース',
+            'category_id' => $this->category->id,
+            'description' => 'テストコースの説明文です。',
+            'difficulty' => 'beginner',
+            'status' => 'draft',
+        ]);
+
+        $response->assertRedirect('/coach/courses');
+
+        $course = Course::where('title', '初期チャプターコース')->first();
+        $this->assertDatabaseHas('chapters', [
+            'course_id' => $course->id,
+            'title' => 'はじめに',
+            'order' => 1,
         ]);
     }
 
