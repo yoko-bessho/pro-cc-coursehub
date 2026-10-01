@@ -76,6 +76,65 @@ class CourseTest extends TestCase
         ]);
     }
 
+    public function test_course_slug_is_generated_from_title(): void
+    {
+        $response = $this->actingAs($this->coach)->post('/coach/courses', [
+            'title' => 'Laravel Basics',
+            'category_id' => $this->category->id,
+            'description' => 'テストコースの説明文です。',
+            'difficulty' => 'beginner',
+            'status' => 'draft',
+        ]);
+
+        $response->assertRedirect('/coach/courses');
+
+        $course = Course::where('title', 'Laravel Basics')->first();
+        $this->assertEquals('laravel-basics', $course->slug);
+    }
+
+    public function test_course_slug_falls_back_to_timestamp_for_japanese_title(): void
+    {
+        $response = $this->actingAs($this->coach)->post('/coach/courses', [
+            'title' => '日本語タイトルのみ',
+            'category_id' => $this->category->id,
+            'description' => 'テストコースの説明文です。',
+            'difficulty' => 'beginner',
+            'status' => 'draft',
+        ]);
+
+        $response->assertRedirect('/coach/courses');
+
+        $course = Course::where('title', '日本語タイトルのみ')->first();
+        $this->assertStringStartsWith('course-', $course->slug);
+    }
+
+    public function test_course_slug_is_made_unique_on_collision(): void
+    {
+        $firstResponse = $this->actingAs($this->coach)->post('/coach/courses', [
+            'title' => 'Hello World!',
+            'category_id' => $this->category->id,
+            'description' => 'テストコースの説明文です。',
+            'difficulty' => 'beginner',
+            'status' => 'draft',
+        ]);
+        $firstResponse->assertRedirect('/coach/courses');
+
+        $secondResponse = $this->actingAs($this->coach)->post('/coach/courses', [
+            'title' => 'Hello World?',
+            'category_id' => $this->category->id,
+            'description' => 'テストコースの説明文です。',
+            'difficulty' => 'beginner',
+            'status' => 'draft',
+        ]);
+        $secondResponse->assertRedirect('/coach/courses');
+
+        $firstCourse = Course::where('title', 'Hello World!')->first();
+        $secondCourse = Course::where('title', 'Hello World?')->first();
+
+        $this->assertEquals('hello-world', $firstCourse->slug);
+        $this->assertEquals('hello-world-1', $secondCourse->slug);
+    }
+
     public function test_coach_can_create_course_with_image(): void
     {
         Storage::fake('public');
