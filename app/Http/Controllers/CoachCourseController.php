@@ -61,26 +61,7 @@ class CoachCourseController extends Controller
 
             $validated = $request->validated();
 
-            // ============================================
-            // 2. スラッグ生成
-            // ============================================
-
-            // タイトルからスラッグを生成
-            $slug = Str::slug($validated['title']);
-
-            // 空のスラッグ対策（日本語タイトルの場合）
-            if (empty($slug)) {
-                $slug = 'course-' . time();
-            }
-
-            // スラッグの重複チェック
-            $originalSlug = $slug;
-            $slugCount = 1;
-            while (Course::where('slug', $slug)->exists()) {
-                $slug = $originalSlug . '-' . $slugCount;
-                $slugCount++;
-            }
-
+            $slug = $this->generateUniqueSlug($validated['title']);
 
             // ============================================
             // 3. 画像アップロード処理
@@ -214,6 +195,24 @@ class CoachCourseController extends Controller
                 'error' => 'コースの作成中にエラーが発生しました。もう一度お試しください。',
             ]);
         }
+    }
+
+    private function generateUniqueSlug(string $title): string
+    {
+        $slug = Str::slug($title);
+
+        if (empty($slug)) {
+            $slug = 'course-' . time();
+        }
+
+        $originalSlug = $slug;
+        $slugCount = 1;
+        while (Course::where('slug', $slug)->exists()) {
+            $slug = $originalSlug . '-' . $slugCount;
+            $slugCount++;
+        }
+
+        return $slug;
     }
 
     public function edit(Course $course)
