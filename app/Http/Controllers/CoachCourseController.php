@@ -8,6 +8,7 @@ use App\Models\Chapter;
 use App\Models\Course;
 use App\Models\Tag;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Str;
 
 class CoachCourseController extends Controller
@@ -63,30 +64,16 @@ class CoachCourseController extends Controller
 
             $slug = $this->generateUniqueSlug($validated['title']);
 
-            // ============================================
-            // 3. 画像アップロード処理
-            // ============================================
-
             $imagePath = null;
-
-            // 画像がアップロードされた場合の処理
             if ($request->hasFile('image')) {
-                $image = $request->file('image');
+                $imagePath = $this->storeCourseImage($request->file('image'));
 
-                // ファイル名を生成（ユニークにするため timestamp を付与）
-                $fileName = time() . '_' . Str::random(10) . '.' . $image->getClientOriginalExtension();
-
-                // storage/app/public/courses ディレクトリに保存
-                $imagePath = $image->storeAs('courses', $fileName, 'public');
-
-                // 保存に失敗した場合
                 if (!$imagePath) {
                     return back()->withInput()->withErrors([
                         'image' => '画像のアップロードに失敗しました。',
                     ]);
                 }
             }
-
 
             // ============================================
             // 4. Course レコード作成
@@ -213,6 +200,13 @@ class CoachCourseController extends Controller
         }
 
         return $slug;
+    }
+
+    private function storeCourseImage(UploadedFile $image): string|false
+    {
+        $fileName = time() . '_' . Str::random(10) . '.' . $image->getClientOriginalExtension();
+
+        return $image->storeAs('courses', $fileName, 'public');
     }
 
     public function edit(Course $course)
