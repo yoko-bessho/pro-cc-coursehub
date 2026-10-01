@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\StoreCourseRequest;
 use App\Models\Category;
 use App\Models\Chapter;
 use App\Models\Course;
@@ -54,38 +55,11 @@ class CoachCourseController extends Controller
      * TODO: バリデーションをFormRequestに切り出す
      * TODO: 画像処理をServiceに移動
      */
-    public function store(Request $request)
+    public function store(StoreCourseRequest $request)
     {
         try {
 
-            // ============================================
-            // 1. バリデーション
-            // ============================================
-
-            // コースの基本情報のバリデーション
-            $validated = $request->validate([
-                'title' => ['required', 'string', 'max:255'],
-                'category_id' => ['required', 'exists:categories,id'],
-                'description' => ['required', 'string'],
-                'difficulty' => ['required', 'in:beginner,intermediate,advanced'],
-                'status' => ['required', 'in:draft,published'],
-                'image' => ['nullable', 'image', 'mimes:jpeg,png,jpg,gif', 'max:2048'],
-                'tags' => ['nullable', 'array'],
-                'tags.*' => ['exists:tags,id'],
-                'new_tags' => ['nullable', 'string'], // カンマ区切りで新規タグを指定可能
-            ]);
-
-            // タイトルの重複チェック（同じコーチ内で）
-            $existingCourse = Course::where('user_id', auth()->id())
-                ->where('title', $validated['title'])
-                ->first();
-
-            if ($existingCourse) {
-                return back()->withInput()->withErrors([
-                    'title' => '同じタイトルのコースが既に存在します。',
-                ]);
-            }
-
+            $validated = $request->validated();
 
             // ============================================
             // 2. スラッグ生成
