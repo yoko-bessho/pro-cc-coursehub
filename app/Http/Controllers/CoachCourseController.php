@@ -93,40 +93,7 @@ class CoachCourseController extends Controller
             ]);
 
 
-            // ============================================
-            // 5. タグの同期（既存タグ + 新規タグ）
-            // ============================================
-
-            // 既存タグのIDリスト
-            $tagIds = $validated['tags'] ?? [];
-
-            // 新規タグが入力されている場合は作成して追加
-            if (!empty($validated['new_tags'])) {
-                $newTagNames = array_map('trim', explode(',', $validated['new_tags']));
-
-                foreach ($newTagNames as $tagName) {
-                    if (empty($tagName)) {
-                        continue;
-                    }
-
-                    // 既存のタグを検索、なければ新規作成
-                    $tag = Tag::firstOrCreate(
-                        ['slug' => Str::slug($tagName)],
-                        ['name' => $tagName]
-                    );
-
-                    // 重複しないようにIDを追加
-                    if (!in_array($tag->id, $tagIds)) {
-                        $tagIds[] = $tag->id;
-                    }
-                }
-            }
-
-            // pivot テーブルを同期
-            if (!empty($tagIds)) {
-                $course->tags()->sync($tagIds);
-            }
-
+            $this->syncCourseTags($course, $validated['tags'] ?? [], $validated['new_tags'] ?? null);
 
             // ============================================
             // 6. 初期 Chapter の自動作成
@@ -207,6 +174,32 @@ class CoachCourseController extends Controller
         $fileName = time() . '_' . Str::random(10) . '.' . $image->getClientOriginalExtension();
 
         return $image->storeAs('courses', $fileName, 'public');
+    }
+
+    private function syncCourseTags(Course $course, array $tagIds, ?string $newTagsInput): void
+    {
+        if (!empty($newTagsInput)) {
+            $newTagNames = array_map('trim', explode(',', $newTagsInput));
+
+            foreach ($newTagNames as $tagName) {
+                if (empty($tagName)) {
+                    continue;
+                }
+
+                $tag = Tag::firstOrCreate(
+                    ['slug' => Str::slug($tagName)],
+                    ['name' => $tagName]
+                );
+
+                if (!in_array($tag->id, $tagIds)) {
+                    $tagIds[] = $tag->id;
+                }
+            }
+        }
+
+        if (!empty($tagIds)) {
+            $course->tags()->sync($tagIds);
+        }
     }
 
     public function edit(Course $course)
