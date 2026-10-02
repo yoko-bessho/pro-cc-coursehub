@@ -34,6 +34,9 @@
                     </thead>
                     <tbody class="divide-y divide-gray-200">
                         @foreach($enrollments as $enrollment)
+                            @php
+                                $progressRate = $course->getProgressRate($enrollment->user_id);
+                            @endphp
                             <tr class="hover:bg-gray-50 transition-colors">
                                 <td class="px-6 py-4">
                                     <div class="flex items-center gap-3">
@@ -54,9 +57,9 @@
                                 <td class="px-6 py-4">
                                     <div class="flex items-center gap-2">
                                         <div class="w-16 bg-gray-200 rounded-full h-1.5">
-                                            <div class="bg-indigo-600 h-1.5 rounded-full" style="width: {{ $course->getProgressRate($enrollment->user_id) }}%"></div>
+                                            <div class="bg-indigo-600 h-1.5 rounded-full" style="width: {{ $progressRate }}%"></div>
                                         </div>
-                                        <span class="text-sm font-medium text-gray-700">{{ $course->getProgressRate($enrollment->user_id) }}%</span>
+                                        <span class="text-sm font-medium text-gray-700">{{ $progressRate }}%</span>
                                     </div>
                                 </td>
                             </tr>
