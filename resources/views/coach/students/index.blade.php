@@ -35,7 +35,7 @@
                     <tbody class="divide-y divide-gray-200">
                         @foreach($enrollments as $enrollment)
                             @php
-                                $progressRate = $course->getProgressRate($enrollment->user_id);
+                                $progressRate = $progressRates[$enrollment->user_id] ?? 0;
                             @endphp
                             <tr class="hover:bg-gray-50 transition-colors">
                                 <td class="px-6 py-4">

@@ -18,7 +18,7 @@
             @foreach($enrollments as $enrollment)
                 @php
                     $course = $enrollment->course;
-                    $progressRate = $course->getProgressRate(auth()->id());
+                    $progressRate = $progressRates[$course->id] ?? 0;
                 @endphp
                 <a href="{{ route('courses.show', $course) }}" class="block bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow duration-200 p-6">
                     <div class="flex items-center justify-between mb-3">

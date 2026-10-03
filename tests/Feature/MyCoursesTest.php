@@ -75,6 +75,32 @@ class MyCoursesTest extends TestCase
         $response->assertSee('0%');
     }
 
+    public function test_student_progress_excludes_unpublished_lessons_from_total(): void
+    {
+        $course = Course::factory()->create([
+            'user_id' => $this->coach->id,
+            'category_id' => $this->category->id,
+        ]);
+        $chapter = Chapter::factory()->create(['course_id' => $course->id]);
+        $publishedLesson = Lesson::factory()->create(['chapter_id' => $chapter->id]);
+        Lesson::factory()->unpublished()->create(['chapter_id' => $chapter->id]);
+
+        Enrollment::factory()->create([
+            'user_id' => $this->student->id,
+            'course_id' => $course->id,
+        ]);
+
+        LessonProgress::factory()->create([
+            'user_id' => $this->student->id,
+            'lesson_id' => $publishedLesson->id,
+        ]);
+
+        $response = $this->actingAs($this->student)->get('/my-courses');
+
+        $response->assertStatus(200);
+        $response->assertSee('100%');
+    }
+
     public function test_student_sees_correct_progress_for_each_of_multiple_enrolled_courses(): void
     {
         $courseA = Course::factory()->create([

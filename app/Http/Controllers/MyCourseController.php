@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Course;
 use App\Models\Enrollment;
 use Illuminate\Http\Request;
 
@@ -15,6 +16,11 @@ class MyCourseController extends Controller
             ->latest('enrolled_at')
             ->get();
 
-        return view('my-courses.index', compact('enrollments'));
+        $progressRates = Course::batchProgressRatesForUser(
+            $enrollments->pluck('course'),
+            auth()->id()
+        );
+
+        return view('my-courses.index', compact('enrollments', 'progressRates'));
     }
 }
