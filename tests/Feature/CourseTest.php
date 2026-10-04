@@ -3,7 +3,9 @@
 namespace Tests\Feature;
 
 use App\Models\Category;
+use App\Models\Chapter;
 use App\Models\Course;
+use App\Models\Enrollment;
 use App\Models\Tag;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -38,6 +40,46 @@ class CourseTest extends TestCase
 
         $response->assertStatus(200);
         $response->assertSee($course->title);
+    }
+
+    public function test_course_list_displays_category_title_description_coach_chapter_count_and_enrollment_count(): void
+    {
+        $course = Course::factory()->create([
+            'user_id' => $this->coach->id,
+            'category_id' => $this->category->id,
+            'status' => 'published',
+            'title' => 'Laravel入門講座',
+            'description' => 'Laravelの基礎から実践までを学ぶコースです。',
+        ]);
+
+        Chapter::factory()->count(3)->create(['course_id' => $course->id]);
+        Enrollment::factory()->count(2)->create(['course_id' => $course->id]);
+
+        $response = $this->actingAs($this->student)->get('/courses');
+
+        $response->assertStatus(200);
+        $response->assertSee($this->category->name);
+        $response->assertSee('Laravel入門講座');
+        $response->assertSee('Laravelの基礎から実践までを学ぶコースです。');
+        $response->assertSee($this->coach->name);
+        $response->assertSee('3 チャプター');
+        $response->assertSee('2名受講中');
+    }
+
+    public function test_course_list_displays_zero_counts_when_course_has_no_chapters_or_enrollments(): void
+    {
+        Course::factory()->create([
+            'user_id' => $this->coach->id,
+            'category_id' => $this->category->id,
+            'status' => 'published',
+            'title' => 'チャプターなしコース',
+        ]);
+
+        $response = $this->actingAs($this->student)->get('/courses');
+
+        $response->assertStatus(200);
+        $response->assertSee('0 チャプター');
+        $response->assertSee('0名受講中');
     }
 
     public function test_student_can_view_published_course(): void
