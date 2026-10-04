@@ -2,8 +2,9 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Course;
 use App\Models\Category;
+use App\Models\Course;
+use App\Models\Review;
 use Illuminate\Http\Request;
 
 class CourseController extends Controller
@@ -20,7 +21,7 @@ class CourseController extends Controller
             $search = $request->input('search');
             $query->where(function ($q) use ($search) {
                 $q->where('title', 'like', "%{$search}%")
-                  ->orWhere('description', 'like', "%{$search}%");
+                    ->orWhere('description', 'like', "%{$search}%");
             });
         }
 
@@ -46,13 +47,21 @@ class CourseController extends Controller
         // コース関連データを一括取得
         $course->load('chapters.lessons', 'user', 'category', 'tags');
 
+        $user = auth()->user();
+
         $enrollment = null;
-        if (auth()->user()->isStudent()) {
+        if ($user->isStudent()) {
             $enrollment = $course->enrollments()
-                ->where('user_id', auth()->id())
+                ->where('user_id', $user->id)
                 ->first();
         }
 
-        return view('courses.show', compact('course', 'enrollment'));
+        $canViewReviews = $user->can('viewAny', [Review::class, $course]);
+        $canReview = $user->can('create', [Review::class, $course]);
+        $reviews = $canViewReviews
+            ? $course->reviews()->with('user')->latest()->get()
+            : collect();
+
+        return view('courses.show', compact('course', 'enrollment', 'reviews', 'canViewReviews', 'canReview'));
     }
 }

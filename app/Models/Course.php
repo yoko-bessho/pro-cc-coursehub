@@ -48,6 +48,11 @@ class Course extends Model
         return $this->hasMany(Enrollment::class);
     }
 
+    public function reviews(): HasMany
+    {
+        return $this->hasMany(Review::class);
+    }
+
     public function tags(): BelongsToMany
     {
         return $this->belongsToMany(Tag::class, 'course_tag');
