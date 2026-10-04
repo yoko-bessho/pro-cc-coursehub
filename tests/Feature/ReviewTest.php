@@ -142,7 +142,7 @@ class ReviewTest extends TestCase
             'rating' => 3,
         ]);
 
-        $response->assertStatus(403);
+        $response->assertSessionHasErrors('user_id');
         $this->assertDatabaseCount('reviews', 1);
     }
 
