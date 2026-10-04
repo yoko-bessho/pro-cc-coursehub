@@ -17,6 +17,7 @@ use App\Http\Controllers\MyCourseController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\QuizController;
 use App\Http\Controllers\QuizManageController;
+use App\Http\Controllers\ReviewController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -47,6 +48,7 @@ Route::middleware('auth')->group(function () {
     Route::middleware('role:student')->group(function () {
         Route::get('/my-courses', [MyCourseController::class, 'index'])->name('my-courses.index');
         Route::post('/courses/{course}/enroll', [EnrollmentController::class, 'store'])->name('courses.enroll');
+        Route::post('/courses/{course}/reviews', [ReviewController::class, 'store'])->name('courses.reviews.store');
         Route::post('/courses/{course}/lessons/{lesson}/complete', [LessonController::class, 'complete'])->name('courses.lessons.complete');
         Route::post('/courses/{course}/quizzes/{quiz}/submit', [QuizController::class, 'submit'])->name('courses.quizzes.submit');
         Route::get('/courses/{course}/quizzes/{quiz}/result', [QuizController::class, 'result'])->name('courses.quizzes.result');

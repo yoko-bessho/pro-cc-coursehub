@@ -16,6 +16,10 @@ class CourseStudentController extends Controller
             ->latest('enrolled_at')
             ->get();
 
-        return view('coach.students.index', compact('course', 'enrollments'));
+        $progressRates = $course->getProgressRatesForUsers(
+            $enrollments->pluck('user_id')->toArray()
+        );
+
+        return view('coach.students.index', compact('course', 'enrollments', 'progressRates'));
     }
 }

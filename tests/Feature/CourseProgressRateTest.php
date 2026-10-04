@@ -16,9 +16,13 @@ class CourseProgressRateTest extends TestCase
     use RefreshDatabase;
 
     private User $coach;
+
     private User $student;
+
     private Category $category;
+
     private Course $course;
+
     private Chapter $chapter;
 
     protected function setUp(): void
@@ -59,7 +63,7 @@ class CourseProgressRateTest extends TestCase
             ]);
         }
 
-        $progressRate = $this->course->getProgressRate($this->student->id);
+        $progressRate = $this->course->getProgressRatesForUsers([$this->student->id])[$this->student->id];
 
         $this->assertSame(100, $progressRate);
     }
@@ -92,14 +96,14 @@ class CourseProgressRateTest extends TestCase
             'lesson_id' => $publishedLessons[2]->id,
         ]);
 
-        $progressRate = $this->course->getProgressRate($this->student->id);
+        $progressRate = $this->course->getProgressRatesForUsers([$this->student->id])[$this->student->id];
 
         $this->assertSame(50, $progressRate);
     }
 
     public function test_progress_rate_is_0_percent_when_course_has_no_lessons(): void
     {
-        $progressRate = $this->course->getProgressRate($this->student->id);
+        $progressRate = $this->course->getProgressRatesForUsers([$this->student->id])[$this->student->id];
 
         $this->assertSame(0, $progressRate);
     }
