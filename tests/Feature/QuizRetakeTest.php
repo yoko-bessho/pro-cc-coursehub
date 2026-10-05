@@ -19,10 +19,15 @@ class QuizRetakeTest extends TestCase
     use RefreshDatabase;
 
     private User $student;
+
     private Course $course;
+
     private Quiz $quiz;
+
     private Question $question;
+
     private Option $correctOption;
+
     private Option $wrongOption;
 
     protected function setUp(): void
@@ -137,6 +142,28 @@ class QuizRetakeTest extends TestCase
             [
                 'answers' => [
                     ['question_id' => $this->question->id],
+                ],
+            ]
+        );
+
+        $response->assertRedirect("/courses/{$this->course->id}/quizzes/{$this->quiz->id}/result");
+        $this->assertDatabaseHas('submissions', [
+            'user_id' => $this->student->id,
+            'quiz_id' => $this->quiz->id,
+            'score' => 0,
+        ]);
+    }
+
+    public function test_option_from_a_different_question_is_not_counted_as_correct(): void
+    {
+        $otherQuestion = Question::factory()->create(['quiz_id' => $this->quiz->id]);
+        $otherCorrectOption = Option::factory()->correct()->create(['question_id' => $otherQuestion->id]);
+
+        $response = $this->actingAs($this->student)->post(
+            "/courses/{$this->course->id}/quizzes/{$this->quiz->id}/submit",
+            [
+                'answers' => [
+                    ['question_id' => $this->question->id, 'option_id' => $otherCorrectOption->id],
                 ],
             ]
         );

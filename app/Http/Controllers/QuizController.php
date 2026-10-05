@@ -38,7 +38,7 @@ class QuizController extends Controller
         foreach ($quiz->questions as $question) {
             $userAnswer = collect($answers)->firstWhere('question_id', $question->id);
             $selectedOption = Option::find($userAnswer['option_id'] ?? null);
-            if ($selectedOption && $selectedOption->is_correct) {
+            if ($selectedOption && $selectedOption->question_id == $question->id && $selectedOption->is_correct) {
                 $correctCount++;
             }
         }
