@@ -13,5 +13,20 @@
       "Bash(git show *)",
       "Bash(git branch *)"
     ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -r '.tool_input.file_path // empty' | { read -r f; case \"$f\" in \"$PWD\"/*.php) ./vendor/bin/sail exec laravel.test ./vendor/bin/pint \"${f#$PWD/}\" ;; esac; } || true",
+            "timeout": 60,
+            "statusMessage": "Running Pint..."
+          }
+        ]
+      }
+    ]
   }
 }
