@@ -79,13 +79,11 @@ class Course extends Model
      */
     public function getProgressRatesForUsers(array $userIds): array
     {
-        $totalLessons = $this->chapters()->withCount('lessons')->get()
-            ->sum('lessons_count');
-
         $lessonIds = $this->getAllLessonIds();
+        $totalLessons = count($lessonIds);
 
         $completedCounts = [];
-        if (!empty($userIds) && !empty($lessonIds)) {
+        if (! empty($userIds) && ! empty($lessonIds)) {
             $completedCounts = LessonProgress::whereIn('user_id', $userIds)
                 ->whereIn('lesson_id', $lessonIds)
                 ->where('status', 'completed')
@@ -130,7 +128,7 @@ class Course extends Model
         }
 
         $completedCountByCourse = [];
-        if (!empty($publishedLessonIdToCourseId)) {
+        if (! empty($publishedLessonIdToCourseId)) {
             $completedLessonIds = LessonProgress::where('user_id', $userId)
                 ->where('status', 'completed')
                 ->whereIn('lesson_id', array_keys($publishedLessonIdToCourseId))
