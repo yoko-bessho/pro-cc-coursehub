@@ -14,6 +14,15 @@ class QuizController extends Controller
     {
         $this->authorize('view', $course);
 
+        $hasPassed = Submission::where('user_id', auth()->id())
+            ->where('quiz_id', $quiz->id)
+            ->where('score', '>=', $quiz->passing_score)
+            ->exists();
+
+        if ($hasPassed) {
+            return redirect()->route('courses.quizzes.result', [$course, $quiz]);
+        }
+
         $quiz->load('questions.options');
 
         return view('quizzes.show', compact('course', 'quiz'));
@@ -21,13 +30,15 @@ class QuizController extends Controller
 
     public function submit(Request $request, Course $course, Quiz $quiz)
     {
+        $this->authorize('submit', [Submission::class, $quiz, $course]);
+
         $answers = $request->input('answers', []);
 
         $correctCount = 0;
         foreach ($quiz->questions as $question) {
             $userAnswer = collect($answers)->firstWhere('question_id', $question->id);
             $selectedOption = Option::find($userAnswer['option_id'] ?? null);
-            if ($selectedOption && $selectedOption->is_correct) {
+            if ($selectedOption && $selectedOption->question_id == $question->id && $selectedOption->is_correct) {
                 $correctCount++;
             }
         }
@@ -51,11 +62,19 @@ class QuizController extends Controller
 
         $quiz->load('questions.options');
 
-        $submission = Submission::where('user_id', auth()->id())
+        $submissions = Submission::where('user_id', auth()->id())
             ->where('quiz_id', $quiz->id)
-            ->latest()
-            ->firstOrFail();
+            ->orderByDesc('submitted_at')
+            ->get();
 
-        return view('quizzes.result', compact('course', 'quiz', 'submission'));
+        $submission = $submissions->first();
+
+        if (! $submission) {
+            abort(404);
+        }
+
+        $canRetake = auth()->user()->can('submit', [Submission::class, $quiz, $course]);
+
+        return view('quizzes.result', compact('course', 'quiz', 'submission', 'submissions', 'canRetake'));
     }
 }

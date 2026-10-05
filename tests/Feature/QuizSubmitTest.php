@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Chapter;
 use App\Models\Course;
+use App\Models\Enrollment;
 use App\Models\Lesson;
 use App\Models\Option;
 use App\Models\Question;
@@ -28,6 +29,11 @@ class QuizSubmitTest extends TestCase
 
         $this->student = User::factory()->create(['role' => 'student']);
         $this->course = Course::factory()->published()->create();
+        Enrollment::factory()->create([
+            'user_id' => $this->student->id,
+            'course_id' => $this->course->id,
+            'status' => 'active',
+        ]);
         $chapter = Chapter::factory()->for($this->course)->create();
         $this->lesson = Lesson::factory()->for($chapter)->create();
     }
