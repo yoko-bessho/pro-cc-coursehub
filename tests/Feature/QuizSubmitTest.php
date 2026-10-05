@@ -8,7 +8,6 @@ use App\Models\Lesson;
 use App\Models\Option;
 use App\Models\Question;
 use App\Models\Quiz;
-use App\Models\Submission;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -18,7 +17,9 @@ class QuizSubmitTest extends TestCase
     use RefreshDatabase;
 
     private User $student;
+
     private Course $course;
+
     private Lesson $lesson;
 
     protected function setUp(): void

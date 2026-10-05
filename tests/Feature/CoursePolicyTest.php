@@ -13,9 +13,13 @@ class CoursePolicyTest extends TestCase
     use RefreshDatabase;
 
     private User $admin;
+
     private User $coach;
+
     private User $otherCoach;
+
     private User $student;
+
     private Category $category;
 
     protected function setUp(): void
