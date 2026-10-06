@@ -1,0 +1,37 @@
+name: Claude Code Review
+
+on:
+  pull_request:
+    types: [opened]
+
+jobs:
+  claude-review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Run Claude Code Review
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            この PR の差分をレビューしてください。
+
+            レビュー観点:
+            - バグ・不整合がないか
+            - CLAUDE.md および .claude/rules/coding.md のコーディング規約・設計方針に沿っているか
+              （Form Request によるバリデーション、Controller を薄く保つ、Service クラスへの切り出し、
+              Policy によるアクセス制御、明示的なリレーション定義、Event/Listener パターン等）
+            - 新機能に対する Feature テストの有無
+
+            指摘事項があれば PR にコメントしてください。
+          claude_args: "--max-turns 5"
