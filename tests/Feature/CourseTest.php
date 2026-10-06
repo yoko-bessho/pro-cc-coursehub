@@ -16,7 +16,9 @@ class CourseTest extends TestCase
     use RefreshDatabase;
 
     private User $coach;
+
     private User $student;
+
     private Category $category;
 
     protected function setUp(): void
@@ -74,6 +76,28 @@ class CourseTest extends TestCase
             'title' => 'テストコース',
             'user_id' => $this->coach->id,
         ]);
+    }
+
+    public function test_coach_cannot_create_course_with_duplicate_title(): void
+    {
+        Course::factory()->create([
+            'user_id' => $this->coach->id,
+            'category_id' => $this->category->id,
+            'title' => '重複コース',
+        ]);
+
+        $response = $this->actingAs($this->coach)->post('/coach/courses', [
+            'title' => '重複コース',
+            'category_id' => $this->category->id,
+            'description' => 'テストコースの説明文です。',
+            'difficulty' => 'beginner',
+            'status' => 'draft',
+        ]);
+
+        $response->assertSessionHasErrors([
+            'title' => '同じタイトルのコースが既に存在します。',
+        ]);
+        $this->assertDatabaseCount('courses', 1);
     }
 
     public function test_course_slug_is_generated_from_title(): void
