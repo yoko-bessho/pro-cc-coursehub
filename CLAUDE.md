@@ -22,6 +22,13 @@
 
 # テスト
 ./vendor/bin/sail artisan test
+
+# Composer パッケージ追加
+./vendor/bin/sail composer require <package>
+
+# フロントエンドビルド（Vite）
+./vendor/bin/sail npm run dev
+./vendor/bin/sail npm run build
 ```
 
 - アプリ: http://localhost
@@ -46,9 +53,9 @@ Course（コース）
 
 ## ユーザーロール
 
-- admin: 管理者
-- coach: コーチ（コース作成）
-- student: 受講生
+- admin: 管理者。すべてのコースを閲覧可能（Policy で `role === 'admin'` を明示的に許可）
+- coach: コーチ。コースを作成でき、自身が作成したコース（`course->user_id === user->id`）のみ編集・削除可能
+- student: 受講生。公開済み（`status === 'published'`）コースを閲覧・受講登録できる。同一コースへの重複登録や、合格済み小テストの再受験は不可
 
 ## コーディング規約・設計方針
 
