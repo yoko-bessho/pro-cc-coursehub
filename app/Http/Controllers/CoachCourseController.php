@@ -2,11 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\StoreCourseRequest;
 use App\Models\Category;
 use App\Models\Chapter;
 use App\Models\Course;
 use App\Models\Tag;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Str;
 
 class CoachCourseController extends Controller
@@ -48,93 +50,31 @@ class CoachCourseController extends Controller
     /**
      * コース新規作成処理
      *
-     * バリデーション、スラッグ生成、画像アップロード、タグ同期、
-     * 初期チャプター作成などを全て行う
-     *
-     * TODO: バリデーションをFormRequestに切り出す
-     * TODO: 画像処理をServiceに移動
+     * バリデーションは StoreCourseRequest に委譲し、スラッグ生成・画像アップロード・
+     * タグ同期は private メソッドに分割した上で、Course レコード作成から
+     * 初期Chapter作成・公開日時設定までを本メソッドで orchestrate する。
      */
-    public function store(Request $request)
+    public function store(StoreCourseRequest $request)
     {
         try {
 
-            // ============================================
-            // 1. バリデーション
-            // ============================================
+            $validated = $request->validated();
 
-            // コースの基本情報のバリデーション
-            $validated = $request->validate([
-                'title' => ['required', 'string', 'max:255'],
-                'category_id' => ['required', 'exists:categories,id'],
-                'description' => ['required', 'string'],
-                'difficulty' => ['required', 'in:beginner,intermediate,advanced'],
-                'status' => ['required', 'in:draft,published'],
-                'image' => ['nullable', 'image', 'mimes:jpeg,png,jpg,gif', 'max:2048'],
-                'tags' => ['nullable', 'array'],
-                'tags.*' => ['exists:tags,id'],
-                'new_tags' => ['nullable', 'string'], // カンマ区切りで新規タグを指定可能
-            ]);
-
-            // タイトルの重複チェック（同じコーチ内で）
-            $existingCourse = Course::where('user_id', auth()->id())
-                ->where('title', $validated['title'])
-                ->first();
-
-            if ($existingCourse) {
-                return back()->withInput()->withErrors([
-                    'title' => '同じタイトルのコースが既に存在します。',
-                ]);
-            }
-
-
-            // ============================================
-            // 2. スラッグ生成
-            // ============================================
-
-            // タイトルからスラッグを生成
-            $slug = Str::slug($validated['title']);
-
-            // 空のスラッグ対策（日本語タイトルの場合）
-            if (empty($slug)) {
-                $slug = 'course-' . time();
-            }
-
-            // スラッグの重複チェック
-            $originalSlug = $slug;
-            $slugCount = 1;
-            while (Course::where('slug', $slug)->exists()) {
-                $slug = $originalSlug . '-' . $slugCount;
-                $slugCount++;
-            }
-
-
-            // ============================================
-            // 3. 画像アップロード処理
-            // ============================================
+            $slug = $this->generateUniqueSlug($validated['title']);
 
             $imagePath = null;
-
-            // 画像がアップロードされた場合の処理
             if ($request->hasFile('image')) {
-                $image = $request->file('image');
+                $imagePath = $this->storeCourseImage($request->file('image'));
 
-                // ファイル名を生成（ユニークにするため timestamp を付与）
-                $fileName = time() . '_' . Str::random(10) . '.' . $image->getClientOriginalExtension();
-
-                // storage/app/public/courses ディレクトリに保存
-                $imagePath = $image->storeAs('courses', $fileName, 'public');
-
-                // 保存に失敗した場合
-                if (!$imagePath) {
+                if (! $imagePath) {
                     return back()->withInput()->withErrors([
                         'image' => '画像のアップロードに失敗しました。',
                     ]);
                 }
             }
 
-
             // ============================================
-            // 4. Course レコード作成
+            // 1. Course レコード作成
             // ============================================
 
             // コースをデータベースに保存
@@ -150,44 +90,10 @@ class CoachCourseController extends Controller
                 'published_at' => null, // 後で設定する
             ]);
 
+            $this->syncCourseTags($course, $validated['tags'] ?? [], $validated['new_tags'] ?? null);
 
             // ============================================
-            // 5. タグの同期（既存タグ + 新規タグ）
-            // ============================================
-
-            // 既存タグのIDリスト
-            $tagIds = $validated['tags'] ?? [];
-
-            // 新規タグが入力されている場合は作成して追加
-            if (!empty($validated['new_tags'])) {
-                $newTagNames = array_map('trim', explode(',', $validated['new_tags']));
-
-                foreach ($newTagNames as $tagName) {
-                    if (empty($tagName)) {
-                        continue;
-                    }
-
-                    // 既存のタグを検索、なければ新規作成
-                    $tag = Tag::firstOrCreate(
-                        ['slug' => Str::slug($tagName)],
-                        ['name' => $tagName]
-                    );
-
-                    // 重複しないようにIDを追加
-                    if (!in_array($tag->id, $tagIds)) {
-                        $tagIds[] = $tag->id;
-                    }
-                }
-            }
-
-            // pivot テーブルを同期
-            if (!empty($tagIds)) {
-                $course->tags()->sync($tagIds);
-            }
-
-
-            // ============================================
-            // 6. 初期 Chapter の自動作成
+            // 2. 初期 Chapter の自動作成
             // ============================================
 
             // コース作成時に最初のチャプターを自動生成
@@ -198,9 +104,8 @@ class CoachCourseController extends Controller
                 'order' => 1,
             ]);
 
-
             // ============================================
-            // 7. ステータスに応じた published_at の設定
+            // 3. ステータスに応じた published_at の設定
             // ============================================
 
             // 公開ステータスの場合は公開日時を設定
@@ -213,9 +118,8 @@ class CoachCourseController extends Controller
             // 下書きの場合は published_at は null のまま
             // ※ archived は新規作成時には選択不可
 
-
             // ============================================
-            // 8. リダイレクト
+            // 4. リダイレクト
             // ============================================
 
             // コース一覧にリダイレクト（成功メッセージ付き）
@@ -225,11 +129,11 @@ class CoachCourseController extends Controller
         } catch (\Exception $e) {
 
             // ============================================
-            // 9. エラーハンドリング
+            // 5. エラーハンドリング
             // ============================================
 
             // ログにエラーを記録
-            \Log::error('コース作成エラー: ' . $e->getMessage(), [
+            \Log::error('コース作成エラー: '.$e->getMessage(), [
                 'user_id' => auth()->id(),
                 'request_data' => $request->except(['image']),
                 'trace' => $e->getTraceAsString(),
@@ -239,6 +143,66 @@ class CoachCourseController extends Controller
             return back()->withInput()->withErrors([
                 'error' => 'コースの作成中にエラーが発生しました。もう一度お試しください。',
             ]);
+        }
+    }
+
+    /**
+     * タイトルからスラッグを生成し、既存コースと重複する場合は連番を付与して一意にする
+     */
+    private function generateUniqueSlug(string $title): string
+    {
+        $slug = Str::slug($title);
+
+        if (empty($slug)) {
+            $slug = 'course-'.time();
+        }
+
+        $originalSlug = $slug;
+        $slugCount = 1;
+        while (Course::where('slug', $slug)->exists()) {
+            $slug = $originalSlug.'-'.$slugCount;
+            $slugCount++;
+        }
+
+        return $slug;
+    }
+
+    /**
+     * アップロードされた画像をユニークなファイル名で courses ディスクに保存する
+     */
+    private function storeCourseImage(UploadedFile $image): string|false
+    {
+        $fileName = time().'_'.Str::random(10).'.'.$image->getClientOriginalExtension();
+
+        return $image->storeAs('courses', $fileName, 'public');
+    }
+
+    /**
+     * 既存タグIDとカンマ区切りの新規タグ名を統合し、新規タグを作成した上でコースに同期する
+     */
+    private function syncCourseTags(Course $course, array $tagIds, ?string $newTagsInput): void
+    {
+        if (! empty($newTagsInput)) {
+            $newTagNames = array_map('trim', explode(',', $newTagsInput));
+
+            foreach ($newTagNames as $tagName) {
+                if (empty($tagName)) {
+                    continue;
+                }
+
+                $tag = Tag::firstOrCreate(
+                    ['slug' => Str::slug($tagName)],
+                    ['name' => $tagName]
+                );
+
+                if (! in_array($tag->id, $tagIds)) {
+                    $tagIds[] = $tag->id;
+                }
+            }
+        }
+
+        if (! empty($tagIds)) {
+            $course->tags()->sync($tagIds);
         }
     }
 
@@ -273,7 +237,7 @@ class CoachCourseController extends Controller
             'description' => $validated['description'],
             'difficulty' => $validated['difficulty'],
             'status' => $validated['status'],
-            'published_at' => $validated['status'] === 'published' && !$course->published_at ? now() : $course->published_at,
+            'published_at' => $validated['status'] === 'published' && ! $course->published_at ? now() : $course->published_at,
         ]);
 
         $course->tags()->sync($validated['tags'] ?? []);
