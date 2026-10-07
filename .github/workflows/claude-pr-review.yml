@@ -35,3 +35,4 @@ jobs:
 
             指摘事項があれば PR にコメントしてください。
           claude_args: "--max-turns 5"
+
