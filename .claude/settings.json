@@ -1,17 +1,17 @@
 {
   "permissions": {
     "allow": [
-      "Bash(./vendor/bin/sail artisan *)",
-      "Bash(./vendor/bin/sail pint *)",
-      "Bash(./vendor/bin/sail up *)",
-      "Bash(./vendor/bin/sail down)",
-      "Bash(./vendor/bin/sail restart *)",
-      "Bash(./vendor/bin/sail ps)",
-      "Bash(git status *)",
-      "Bash(git diff *)",
-      "Bash(git log *)",
-      "Bash(git show *)",
-      "Bash(git branch *)"
+        "Bash(./vendor/bin/sail *)",
+        "Bash(./vendor/bin/sail artisan *)",
+        "Bash(git add *)",
+        "Bash(git commit *)",
+        "Bash(git push *)",
+        "Bash(git checkout *)",
+        "Bash(git branch *)",
+        "Bash(git merge *)",
+        "Bash(git log *)",
+        "Bash(git diff *)",
+        "Bash(git status)"
     ]
   },
   "hooks": {
