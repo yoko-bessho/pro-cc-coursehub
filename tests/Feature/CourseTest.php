@@ -287,6 +287,21 @@ class CourseTest extends TestCase
         );
     }
 
+    public function test_coach_cannot_create_course_with_new_tags_longer_than_255_characters(): void
+    {
+        $response = $this->actingAs($this->coach)->post('/coach/courses', [
+            'title' => '長すぎる新規タグのコース',
+            'category_id' => $this->category->id,
+            'description' => 'テストコースの説明文です。',
+            'difficulty' => 'beginner',
+            'status' => 'draft',
+            'new_tags' => str_repeat('a', 256),
+        ]);
+
+        $response->assertSessionHasErrors('new_tags');
+        $this->assertDatabaseMissing('courses', ['title' => '長すぎる新規タグのコース']);
+    }
+
     public function test_initial_chapter_is_created_when_creating_course(): void
     {
         $response = $this->actingAs($this->coach)->post('/coach/courses', [
@@ -401,6 +416,25 @@ class CourseTest extends TestCase
             [$existingTag->name, 'Vue.js'],
             $course->tags()->pluck('name')->toArray()
         );
+    }
+
+    public function test_coach_cannot_update_course_with_new_tags_longer_than_255_characters(): void
+    {
+        $course = Course::factory()->create([
+            'user_id' => $this->coach->id,
+            'category_id' => $this->category->id,
+        ]);
+
+        $response = $this->actingAs($this->coach)->put("/coach/courses/{$course->id}", [
+            'title' => $course->title,
+            'category_id' => $this->category->id,
+            'description' => $course->description,
+            'difficulty' => $course->difficulty,
+            'status' => $course->status,
+            'new_tags' => str_repeat('a', 256),
+        ]);
+
+        $response->assertSessionHasErrors('new_tags');
     }
 
     public function test_coach_cannot_update_other_coachs_course(): void
