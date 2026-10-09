@@ -403,6 +403,29 @@ class CourseTest extends TestCase
         );
     }
 
+    public function test_coach_cannot_update_other_coachs_course(): void
+    {
+        $otherCoach = User::factory()->create(['role' => 'coach']);
+        $course = Course::factory()->create([
+            'user_id' => $otherCoach->id,
+            'category_id' => $this->category->id,
+        ]);
+
+        $response = $this->actingAs($this->coach)->put("/coach/courses/{$course->id}", [
+            'title' => '乗っ取りタイトル',
+            'category_id' => $this->category->id,
+            'description' => '乗っ取り説明文です。',
+            'difficulty' => 'intermediate',
+            'status' => 'published',
+        ]);
+
+        $response->assertStatus(403);
+        $this->assertDatabaseMissing('courses', [
+            'id' => $course->id,
+            'title' => '乗っ取りタイトル',
+        ]);
+    }
+
     public function test_coach_can_delete_own_course(): void
     {
         $course = Course::factory()->create([
