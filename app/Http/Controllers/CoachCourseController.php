@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreCourseRequest;
+use App\Http\Requests\UpdateCourseRequest;
 use App\Models\Category;
 use App\Models\Chapter;
 use App\Models\Course;
@@ -190,7 +191,7 @@ class CoachCourseController extends Controller
         return view('coach.courses.edit', compact('course', 'categories', 'tags'));
     }
 
-    public function update(StoreCourseRequest $request, Course $course)
+    public function update(UpdateCourseRequest $request, Course $course)
     {
         $this->authorize('update', $course);
 
