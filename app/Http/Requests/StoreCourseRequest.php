@@ -14,15 +14,21 @@ class StoreCourseRequest extends FormRequest
 
     public function rules(): array
     {
+        // update では {course} ルートパラメータが束縛されている（store では null）。
+        // これを使って、自分自身は重複チェック対象外にし、archived への変更を許可する。
+        $course = $this->route('course');
+
         return [
             'title' => [
                 'required', 'string', 'max:255',
-                Rule::unique('courses', 'title')->where('user_id', auth()->id()),
+                Rule::unique('courses', 'title')->where('user_id', auth()->id())->ignore($course),
             ],
             'category_id' => ['required', 'exists:categories,id'],
             'description' => ['required', 'string'],
             'difficulty' => ['required', 'in:beginner,intermediate,advanced'],
-            'status' => ['required', 'in:draft,published'],
+            'status' => $course
+                ? ['required', 'in:draft,published,archived']
+                : ['required', 'in:draft,published'],
             'image' => ['nullable', 'image', 'mimes:jpeg,png,jpg,gif', 'max:2048'],
             'tags' => ['nullable', 'array'],
             'tags.*' => ['exists:tags,id'],
