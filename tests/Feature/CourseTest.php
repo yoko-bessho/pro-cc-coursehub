@@ -261,6 +261,47 @@ class CourseTest extends TestCase
         );
     }
 
+    public function test_coach_can_create_new_tags_when_creating_course(): void
+    {
+        $existingTag = Tag::factory()->create();
+
+        $response = $this->actingAs($this->coach)->post('/coach/courses', [
+            'title' => '新規タグ付きコース',
+            'category_id' => $this->category->id,
+            'description' => 'テストコースの説明文です。',
+            'difficulty' => 'beginner',
+            'status' => 'draft',
+            'tags' => [$existingTag->id],
+            'new_tags' => 'Laravel, PHP',
+        ]);
+
+        $response->assertRedirect('/coach/courses');
+
+        $this->assertDatabaseHas('tags', ['name' => 'Laravel']);
+        $this->assertDatabaseHas('tags', ['name' => 'PHP']);
+
+        $course = Course::where('title', '新規タグ付きコース')->first();
+        $this->assertEqualsCanonicalizing(
+            [$existingTag->name, 'Laravel', 'PHP'],
+            $course->tags()->pluck('name')->toArray()
+        );
+    }
+
+    public function test_coach_cannot_create_course_with_new_tags_longer_than_255_characters(): void
+    {
+        $response = $this->actingAs($this->coach)->post('/coach/courses', [
+            'title' => '長すぎる新規タグのコース',
+            'category_id' => $this->category->id,
+            'description' => 'テストコースの説明文です。',
+            'difficulty' => 'beginner',
+            'status' => 'draft',
+            'new_tags' => str_repeat('a', 256),
+        ]);
+
+        $response->assertSessionHasErrors('new_tags');
+        $this->assertDatabaseMissing('courses', ['title' => '長すぎる新規タグのコース']);
+    }
+
     public function test_initial_chapter_is_created_when_creating_course(): void
     {
         $response = $this->actingAs($this->coach)->post('/coach/courses', [
@@ -300,6 +341,122 @@ class CourseTest extends TestCase
         $this->assertDatabaseHas('courses', [
             'id' => $course->id,
             'title' => '更新されたタイトル',
+        ]);
+    }
+
+    public function test_coach_cannot_update_course_with_title_already_used_by_another_own_course(): void
+    {
+        Course::factory()->create([
+            'user_id' => $this->coach->id,
+            'category_id' => $this->category->id,
+            'title' => '既存コース',
+        ]);
+        $course = Course::factory()->create([
+            'user_id' => $this->coach->id,
+            'category_id' => $this->category->id,
+        ]);
+
+        $response = $this->actingAs($this->coach)->put("/coach/courses/{$course->id}", [
+            'title' => '既存コース',
+            'category_id' => $this->category->id,
+            'description' => '更新された説明文です。',
+            'difficulty' => 'intermediate',
+            'status' => 'published',
+        ]);
+
+        $response->assertSessionHasErrors('title');
+    }
+
+    public function test_coach_can_update_course_while_keeping_its_own_title(): void
+    {
+        $course = Course::factory()->create([
+            'user_id' => $this->coach->id,
+            'category_id' => $this->category->id,
+            'title' => '変わらないタイトル',
+        ]);
+
+        $response = $this->actingAs($this->coach)->put("/coach/courses/{$course->id}", [
+            'title' => '変わらないタイトル',
+            'category_id' => $this->category->id,
+            'description' => '更新された説明文です。',
+            'difficulty' => 'intermediate',
+            'status' => 'archived',
+        ]);
+
+        $response->assertRedirect('/coach/courses');
+        $this->assertDatabaseHas('courses', [
+            'id' => $course->id,
+            'title' => '変わらないタイトル',
+            'status' => 'archived',
+        ]);
+    }
+
+    public function test_coach_can_sync_tags_and_create_new_tags_when_updating_course(): void
+    {
+        $course = Course::factory()->create([
+            'user_id' => $this->coach->id,
+            'category_id' => $this->category->id,
+        ]);
+        $existingTag = Tag::factory()->create();
+
+        $response = $this->actingAs($this->coach)->put("/coach/courses/{$course->id}", [
+            'title' => $course->title,
+            'category_id' => $this->category->id,
+            'description' => $course->description,
+            'difficulty' => $course->difficulty,
+            'status' => $course->status,
+            'tags' => [$existingTag->id],
+            'new_tags' => 'Vue.js',
+        ]);
+
+        $response->assertRedirect('/coach/courses');
+
+        $this->assertDatabaseHas('tags', ['name' => 'Vue.js']);
+        $this->assertEqualsCanonicalizing(
+            [$existingTag->name, 'Vue.js'],
+            $course->tags()->pluck('name')->toArray()
+        );
+    }
+
+    public function test_coach_cannot_update_course_with_new_tags_longer_than_255_characters(): void
+    {
+        $course = Course::factory()->create([
+            'user_id' => $this->coach->id,
+            'category_id' => $this->category->id,
+        ]);
+
+        $response = $this->actingAs($this->coach)->put("/coach/courses/{$course->id}", [
+            'title' => $course->title,
+            'category_id' => $this->category->id,
+            'description' => $course->description,
+            'difficulty' => $course->difficulty,
+            'status' => $course->status,
+            'new_tags' => str_repeat('a', 256),
+        ]);
+
+        $response->assertSessionHasErrors('new_tags');
+    }
+
+    public function test_coach_cannot_update_other_coachs_course(): void
+    {
+        $otherCoach = User::factory()->create(['role' => 'coach']);
+        $course = Course::factory()->create([
+            'user_id' => $otherCoach->id,
+            'category_id' => $this->category->id,
+        ]);
+
+        $response = $this->actingAs($this->coach)->put("/coach/courses/{$course->id}", [
+            'title' => '乗っ取りタイトル',
+            'category_id' => $this->category->id,
+            'description' => '乗っ取り説明文です。',
+            'difficulty' => 'intermediate',
+            'status' => 'published',
+        ]);
+
+        $response->assertStatus(403);
+        $this->assertDatabaseMissing('courses', [
+            'id' => $course->id,
+            'title' => '乗っ取りタイトル',
         ]);
     }
 
