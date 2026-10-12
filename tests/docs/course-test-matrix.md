@@ -1,6 +1,6 @@
 # Course関連テスト 網羅マトリクス
 
-更新日: 2026-10-12
+更新日: 2026-10-13
 
 ## 対象ファイル
 
@@ -21,11 +21,15 @@ Course に関連するが、別機能（受講登録・レビュー・小テス�
 | ロール | 一覧表示<br>`GET /courses` | 作成<br>`POST /coach/courses` | 更新<br>`PUT /coach/courses/{id}` | 削除<br>`DELETE /coach/courses/{id}` | 管理者一覧<br>`GET /admin/courses` | 管理者削除<br>`DELETE /admin/courses/{id}` |
 |---|---|---|---|---|---|---|
 | 受講生 | 許可 ✅ `test_student_can_view_course_list` | 禁止 ✅ `test_student_cannot_create_course`※1 | 禁止 ❌ 未テスト | 禁止 ❌ 未テスト | 禁止 ❌ 未テスト | 禁止 ❌ 未テスト |
-| コーチ（自分のコース） | 許可 ❌ 未テスト | 許可 ✅ `test_coach_can_create_course` 他多数 | 許可 ✅ `test_coach_can_update_course` 他 | 許可 ✅ `test_coach_can_delete_own_course` | 禁止 ❌ 未テスト | 禁止 ❌ 未テスト |
-| コーチ（他コーチのコース） | 許可 ❌ 未テスト | （対象コースなしのため適用外） | 禁止 ✅ `test_coach_cannot_update_other_coachs_course` | 禁止 ✅ `test_coach_cannot_delete_other_coaches_course` | 禁止 ❌ 未テスト | 禁止 ❌ 未テスト |
-| 管理者 | 許可 ❌ 未テスト | 禁止 ❌ 未テスト | 禁止 ❌ 未テスト | 禁止 ❌ 未テスト | 許可 ❌ 未テスト | 許可 ❌ 未テスト |
+| コーチ（自分のコース） | 許可 ❌ 未テスト | 許可 ✅ `test_coach_can_create_course` 他多数 | 許可 ✅ `test_coach_can_update_course` 他 | 許可 ✅ `test_coach_can_delete_own_course` | 禁止 ✅ `test_non_admin_cannot_view_admin_course_list`（AdminCourseTest） | 禁止 ✅ `test_non_admin_cannot_delete_course_via_admin_route`（AdminCourseTest） |
+| コーチ（他コーチのコース） | 許可 ❌ 未テスト | （対象コースなしのため適用外） | 禁止 ✅ `test_coach_cannot_update_other_coachs_course` | 禁止 ✅ `test_coach_cannot_delete_other_coaches_course` | 同上（ownership非依存のため同一テストでカバー） | 同上（ownership非依存のため同一テストでカバー） |
+| 管理者 | 許可 ❌ 未テスト | 禁止 ✅ `test_admin_cannot_create_course`※2 | 禁止 ✅ `test_admin_cannot_update_course`※2 | 禁止 ✅ `test_admin_cannot_delete_course_via_coach_route`※2 | 許可 ✅ `test_admin_can_view_courses_of_any_status`（AdminCourseTest） | 許可 ❌ 未テスト（※3、仕様未確定のためテスト保留中） |
 
 ※1 `test_student_cannot_create_course` は `GET /coach/courses/create` への403を検証している（`POST /coach/courses` 自体への直接テストではない）。ただし `role:coach` ミドルウェアが `/coach` 配下全体を遮断するため、作成アクションも実質カバーしていると見なせる。
+
+※2 管理者がコース作成・更新・削除（`/coach/*`経由）を一切行えないことを確認したテスト。`AdminCourseController` にも作成・更新の手段がないため、管理者はコース内容を編集する手段を持たない。これが意図した仕様か（閲覧・削除のみの権限と割り切る設計か）は要確認として `tests/Feature/CourseTest.php` にコメントで残している。
+
+※3 `App\Policies\CoursePolicy::delete()` はコース作成者本人のみ許可する実装（`$user->id === $course->user_id`）だが、`AdminCourseController::destroy()` は `$this->authorize()` を呼ばずに `$course->delete()` を直接実行しており、Policyの権限定義と矛盾している。「管理者は他コーチのコースも削除できる」が意図した仕様か、Policy側に管理者許可を足し忘れているだけかが未確定のため、正常系テスト（`tests/Feature/AdminCourseTest.php` にコメントアウトで記述済み）は仕様確定まで保留している。
 
 根拠: `routes/web.php` の `role:coach` / `role:admin` ミドルウェア、`App\Policies\CoursePolicy::create/update/delete`、`App\Http\Middleware\RoleMiddleware`（ロール不一致は無条件403、管理者の特別扱いなし）。
 
@@ -85,11 +89,17 @@ Course に関連するが、別機能（受講登録・レビュー・小テス�
 | 正常系 | 公開レッスンの一部完了時に完了割合が反映される | `test_progress_rate_reflects_partial_completion_of_published_lessons` |
 | 正常系 | レッスンが0件のコースは0% | `test_progress_rate_is_0_percent_when_course_has_no_lessons` |
 
+## 要確認事項（仕様の疑義）
+
+テストを実装する過程で見つかった、実装とPolicy定義の不整合。仕様が確定するまでテストを保留している箇所。
+
+- **管理者はコース内容を編集する手段を持たない**: `CoursePolicy::create()` は `role === 'coach'` のみ許可、`AdminCourseController` にも作成・更新の手段がない。管理者の役割を「閲覧・削除のみ」と割り切る設計として正しいか要確認（`CourseTest.php` の `test_admin_cannot_create_course` / `test_admin_cannot_update_course` 周辺にコメントあり）。
+- **管理者のコース削除権限がPolicyと矛盾**: `CoursePolicy::delete()` はコース作成者本人のみ許可する実装だが、`AdminCourseController::destroy()` は `authorize()` を呼ばずに誰のコースでも削除できる別ルートを提供している。意図した仕様か、Policy側の実装漏れかが未確定のため、`AdminCourseTest.php` に正常系テストをコメントアウトで保留中（※3参照）。
+
 ## 未カバー・ギャップ
 
 権限マトリクス・業務ロジック表の「❌ 未テスト」のうち、特に優先度が高いと考えられるもの。
 
-- **管理者の `/coach/*` `/admin/*` アクセス権**: 管理者がコース作成・更新・削除を行えないこと（`role:coach` ミドルウェアによる403）、および管理者専用の一覧表示・削除（`AdminCourseController`）が機能すること自体が未テスト。
 - **コーチが自分の公開済み・アーカイブ済みコースを詳細表示できること**: 下書きのみテスト済みで、他のstatusは未検証。
 - **他コーチの公開コースを閲覧できること**: Policy上は許可だが、直接検証するテストがない。
 - **一覧表示 (`/courses`) へのコーチ・管理者のアクセス**: 受講生のみテスト済み。ロール制限がない画面だが、回帰防止の観点では薄い。

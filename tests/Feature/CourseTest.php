@@ -21,6 +21,8 @@ class CourseTest extends TestCase
 
     private User $student;
 
+    private User $admin;
+
     private Category $category;
 
     protected function setUp(): void
@@ -29,6 +31,7 @@ class CourseTest extends TestCase
 
         $this->coach = User::factory()->create(['role' => 'coach']);
         $this->student = User::factory()->create(['role' => 'student']);
+        $this->admin = User::factory()->create(['role' => 'admin']);
         $this->category = Category::factory()->create();
     }
 
@@ -399,6 +402,24 @@ class CourseTest extends TestCase
         $response->assertStatus(403);
     }
 
+    // NOTE: 管理者はCoursePolicy::create()（role === 'coach'のみ許可）にも合致せず、
+    // role:coachミドルウェアで/coach配下全体から弾かれる。AdminCourseControllerには
+    // コース作成・更新の手段が一切ない（一覧閲覧・削除のみ）ため、管理者がコース内容を
+    // 編集する手段を持たないことが意図した仕様か要確認。
+    public function test_admin_cannot_create_course(): void
+    {
+        $response = $this->actingAs($this->admin)->post('/coach/courses', [
+            'title' => '管理者作成コース',
+            'category_id' => $this->category->id,
+            'description' => 'テストコースの説明文です。',
+            'difficulty' => 'beginner',
+            'status' => 'draft',
+        ]);
+
+        $response->assertStatus(403);
+        $this->assertDatabaseMissing('courses', ['title' => '管理者作成コース']);
+    }
+
     // =========================================================================
     // コース更新
     // =========================================================================
@@ -545,6 +566,31 @@ class CourseTest extends TestCase
         ]);
     }
 
+    // NOTE: 管理者もrole:coachミドルウェアで/coach配下全体から弾かれ、更新手段を持たない。
+    // 作成時と同様、意図した仕様か要確認。
+    public function test_admin_cannot_update_course(): void
+    {
+        $course = Course::factory()->create([
+            'user_id' => $this->coach->id,
+            'category_id' => $this->category->id,
+            'title' => '更新前タイトル',
+        ]);
+
+        $response = $this->actingAs($this->admin)->put("/coach/courses/{$course->id}", [
+            'title' => '管理者による更新',
+            'category_id' => $this->category->id,
+            'description' => '更新された説明文です。',
+            'difficulty' => 'intermediate',
+            'status' => 'published',
+        ]);
+
+        $response->assertStatus(403);
+        $this->assertDatabaseHas('courses', [
+            'id' => $course->id,
+            'title' => '更新前タイトル',
+        ]);
+    }
+
     // =========================================================================
     // コース削除
     // =========================================================================
@@ -577,5 +623,23 @@ class CourseTest extends TestCase
         $response = $this->actingAs($this->coach)->delete("/coach/courses/{$course->id}");
 
         $response->assertStatus(403);
+    }
+
+    // NOTE: /coach/courses/{id} 経由では管理者も role:coach ミドルウェアで弾かれ削除できない。
+    // 一方で AdminCourseController::destroy（/admin/courses/{id}）は authorize() を呼ばずに
+    // 誰のコースでも削除できる別ルートになっている（AdminCourseTest参照）。
+    // 「コース削除は管理者専用ルート経由のみ許可する」設計として一貫しているのか、
+    // それとも単に実装の漏れなのか、管理者の削除権限の全体設計は要確認。
+    public function test_admin_cannot_delete_course_via_coach_route(): void
+    {
+        $course = Course::factory()->create([
+            'user_id' => $this->coach->id,
+            'category_id' => $this->category->id,
+        ]);
+
+        $response = $this->actingAs($this->admin)->delete("/coach/courses/{$course->id}");
+
+        $response->assertStatus(403);
+        $this->assertDatabaseHas('courses', ['id' => $course->id]);
     }
 }
