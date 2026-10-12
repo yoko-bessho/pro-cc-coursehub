@@ -57,6 +57,30 @@ class CoursePolicyTest extends TestCase
         $response->assertStatus(200);
     }
 
+    public function test_course_author_can_view_own_published_course(): void
+    {
+        $course = Course::factory()->published()->create([
+            'user_id' => $this->coach->id,
+            'category_id' => $this->category->id,
+        ]);
+
+        $response = $this->actingAs($this->coach)->get("/courses/{$course->id}");
+
+        $response->assertStatus(200);
+    }
+
+    public function test_course_author_can_view_own_archived_course(): void
+    {
+        $course = Course::factory()->archived()->create([
+            'user_id' => $this->coach->id,
+            'category_id' => $this->category->id,
+        ]);
+
+        $response = $this->actingAs($this->coach)->get("/courses/{$course->id}");
+
+        $response->assertStatus(200);
+    }
+
     public function test_student_can_view_published_course(): void
     {
         $course = Course::factory()->published()->create([

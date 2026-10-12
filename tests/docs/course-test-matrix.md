@@ -38,7 +38,7 @@ Course に関連するが、別機能（受講登録・レビュー・小テス�
 | ロール \ コースstatus | 公開（published） | 下書き（draft） | アーカイブ（archived） |
 |---|---|---|---|
 | 受講生 | 許可 ✅ `test_student_can_view_published_course`（CourseTest / CoursePolicyTest 両方） | 禁止 ✅ `test_student_cannot_view_draft_course` | 禁止 ✅ `test_student_cannot_view_archived_course` |
-| コーチ（自分のコース） | 許可 ❌ 未テスト | 許可 ✅ `test_course_author_can_view_own_draft_course` | 許可 ❌ 未テスト |
+| コーチ（自分のコース） | 許可 ✅ `test_course_author_can_view_own_published_course` | 許可 ✅ `test_course_author_can_view_own_draft_course` | 許可 ✅ `test_course_author_can_view_own_archived_course` |
 | コーチ（他コーチのコース） | 許可 ❌ 未テスト | 禁止 ✅ `test_coach_cannot_view_other_coachs_draft_course` | 禁止 ✅ `test_coach_cannot_view_other_coachs_archived_course` |
 | 管理者 | 許可 ❌ 未テスト | 許可 ✅ `test_admin_can_view_draft_course` | 許可 ❌ 未テスト |
 
@@ -100,7 +100,6 @@ Course に関連するが、別機能（受講登録・レビュー・小テス�
 
 権限マトリクス・業務ロジック表の「❌ 未テスト」のうち、特に優先度が高いと考えられるもの。
 
-- **コーチが自分の公開済み・アーカイブ済みコースを詳細表示できること**: 下書きのみテスト済みで、他のstatusは未検証。
 - **他コーチの公開コースを閲覧できること**: Policy上は許可だが、直接検証するテストがない。
 - **一覧表示 (`/courses`) へのコーチ・管理者のアクセス**: 受講生のみテスト済み。ロール制限がない画面だが、回帰防止の観点では薄い。
 - **Form Request の個別バリデーション**: `StoreCourseRequest` / `UpdateCourseRequest` のうち、`title` の重複チェックと `new_tags` の255文字超のみがテスト対象。必須項目欠落（title/category_id/description/difficulty/status）、`category_id` が存在しない値、`difficulty`/`status` の許容値外、画像の形式・サイズ超過（`StoreCourseRequest`）は未テスト。
