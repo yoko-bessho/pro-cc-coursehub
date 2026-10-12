@@ -32,6 +32,12 @@ class CourseTest extends TestCase
         $this->category = Category::factory()->create();
     }
 
+    // =========================================================================
+    // 一覧表示
+    // =========================================================================
+
+    // --- 正常系 ---
+
     public function test_student_can_view_course_list(): void
     {
         $course = Course::factory()->create([
@@ -86,6 +92,62 @@ class CourseTest extends TestCase
         $response->assertSee('0名受講中');
     }
 
+    public function test_course_list_can_be_filtered_by_category(): void
+    {
+        $otherCategory = Category::factory()->create();
+
+        Course::factory()->create([
+            'user_id' => $this->coach->id,
+            'category_id' => $this->category->id,
+            'status' => 'published',
+            'title' => 'カテゴリAのコース',
+        ]);
+
+        Course::factory()->create([
+            'user_id' => $this->coach->id,
+            'category_id' => $otherCategory->id,
+            'status' => 'published',
+            'title' => 'カテゴリBのコース',
+        ]);
+
+        $response = $this->actingAs($this->student)
+            ->get("/courses?category={$this->category->id}");
+
+        $response->assertStatus(200);
+        $response->assertSee('カテゴリAのコース');
+        $response->assertDontSee('カテゴリBのコース');
+    }
+
+    public function test_course_list_can_be_searched(): void
+    {
+        Course::factory()->create([
+            'user_id' => $this->coach->id,
+            'category_id' => $this->category->id,
+            'status' => 'published',
+            'title' => 'Laravel入門',
+        ]);
+
+        Course::factory()->create([
+            'user_id' => $this->coach->id,
+            'category_id' => $this->category->id,
+            'status' => 'published',
+            'title' => 'React基礎',
+        ]);
+
+        $response = $this->actingAs($this->student)
+            ->get('/courses?search=Laravel');
+
+        $response->assertStatus(200);
+        $response->assertSee('Laravel入門');
+        $response->assertDontSee('React基礎');
+    }
+
+    // =========================================================================
+    // コース詳細表示
+    // =========================================================================
+
+    // --- 正常系 ---
+
     public function test_student_can_view_published_course(): void
     {
         $course = Course::factory()->create([
@@ -99,6 +161,12 @@ class CourseTest extends TestCase
         $response->assertStatus(200);
         $response->assertSee($course->title);
     }
+
+    // =========================================================================
+    // コース作成
+    // =========================================================================
+
+    // --- 正常系 ---
 
     public function test_coach_can_create_course(): void
     {
@@ -118,28 +186,6 @@ class CourseTest extends TestCase
             'title' => 'テストコース',
             'user_id' => $this->coach->id,
         ]);
-    }
-
-    public function test_coach_cannot_create_course_with_duplicate_title(): void
-    {
-        Course::factory()->create([
-            'user_id' => $this->coach->id,
-            'category_id' => $this->category->id,
-            'title' => '重複コース',
-        ]);
-
-        $response = $this->actingAs($this->coach)->post('/coach/courses', [
-            'title' => '重複コース',
-            'category_id' => $this->category->id,
-            'description' => 'テストコースの説明文です。',
-            'difficulty' => 'beginner',
-            'status' => 'draft',
-        ]);
-
-        $response->assertSessionHasErrors([
-            'title' => '同じタイトルのコースが既に存在します。',
-        ]);
-        $this->assertDatabaseCount('courses', 1);
     }
 
     public function test_course_slug_is_generated_from_title(): void
@@ -171,7 +217,7 @@ class CourseTest extends TestCase
         $response->assertRedirect('/coach/courses');
 
         $course = Course::where('title', '日本語タイトルのみ')->first();
-        $this->assertStringStartsWith('course-', $course->slug);
+        $this->assertMatchesRegularExpression('/^course-\d+$/', $course->slug);
     }
 
     public function test_course_slug_is_made_unique_on_collision(): void
@@ -287,21 +333,6 @@ class CourseTest extends TestCase
         );
     }
 
-    public function test_coach_cannot_create_course_with_new_tags_longer_than_255_characters(): void
-    {
-        $response = $this->actingAs($this->coach)->post('/coach/courses', [
-            'title' => '長すぎる新規タグのコース',
-            'category_id' => $this->category->id,
-            'description' => 'テストコースの説明文です。',
-            'difficulty' => 'beginner',
-            'status' => 'draft',
-            'new_tags' => str_repeat('a', 256),
-        ]);
-
-        $response->assertSessionHasErrors('new_tags');
-        $this->assertDatabaseMissing('courses', ['title' => '長すぎる新規タグのコース']);
-    }
-
     public function test_initial_chapter_is_created_when_creating_course(): void
     {
         $response = $this->actingAs($this->coach)->post('/coach/courses', [
@@ -321,6 +352,58 @@ class CourseTest extends TestCase
             'order' => 1,
         ]);
     }
+
+    // --- 異常系 ---
+
+    public function test_coach_cannot_create_course_with_duplicate_title(): void
+    {
+        Course::factory()->create([
+            'user_id' => $this->coach->id,
+            'category_id' => $this->category->id,
+            'title' => '重複コース',
+        ]);
+
+        $response = $this->actingAs($this->coach)->post('/coach/courses', [
+            'title' => '重複コース',
+            'category_id' => $this->category->id,
+            'description' => 'テストコースの説明文です。',
+            'difficulty' => 'beginner',
+            'status' => 'draft',
+        ]);
+
+        $response->assertSessionHasErrors([
+            'title' => '同じタイトルのコースが既に存在します。',
+        ]);
+        $this->assertDatabaseCount('courses', 1);
+    }
+
+    public function test_coach_cannot_create_course_with_new_tags_longer_than_255_characters(): void
+    {
+        $response = $this->actingAs($this->coach)->post('/coach/courses', [
+            'title' => '長すぎる新規タグのコース',
+            'category_id' => $this->category->id,
+            'description' => 'テストコースの説明文です。',
+            'difficulty' => 'beginner',
+            'status' => 'draft',
+            'new_tags' => str_repeat('a', 256),
+        ]);
+
+        $response->assertSessionHasErrors('new_tags');
+        $this->assertDatabaseMissing('courses', ['title' => '長すぎる新規タグのコース']);
+    }
+
+    public function test_student_cannot_create_course(): void
+    {
+        $response = $this->actingAs($this->student)->get('/coach/courses/create');
+
+        $response->assertStatus(403);
+    }
+
+    // =========================================================================
+    // コース更新
+    // =========================================================================
+
+    // --- 正常系 ---
 
     public function test_coach_can_update_course(): void
     {
@@ -342,29 +425,6 @@ class CourseTest extends TestCase
             'id' => $course->id,
             'title' => '更新されたタイトル',
         ]);
-    }
-
-    public function test_coach_cannot_update_course_with_title_already_used_by_another_own_course(): void
-    {
-        Course::factory()->create([
-            'user_id' => $this->coach->id,
-            'category_id' => $this->category->id,
-            'title' => '既存コース',
-        ]);
-        $course = Course::factory()->create([
-            'user_id' => $this->coach->id,
-            'category_id' => $this->category->id,
-        ]);
-
-        $response = $this->actingAs($this->coach)->put("/coach/courses/{$course->id}", [
-            'title' => '既存コース',
-            'category_id' => $this->category->id,
-            'description' => '更新された説明文です。',
-            'difficulty' => 'intermediate',
-            'status' => 'published',
-        ]);
-
-        $response->assertSessionHasErrors('title');
     }
 
     public function test_coach_can_update_course_while_keeping_its_own_title(): void
@@ -418,6 +478,31 @@ class CourseTest extends TestCase
         );
     }
 
+    // --- 異常系 ---
+
+    public function test_coach_cannot_update_course_with_title_already_used_by_another_own_course(): void
+    {
+        Course::factory()->create([
+            'user_id' => $this->coach->id,
+            'category_id' => $this->category->id,
+            'title' => '既存コース',
+        ]);
+        $course = Course::factory()->create([
+            'user_id' => $this->coach->id,
+            'category_id' => $this->category->id,
+        ]);
+
+        $response = $this->actingAs($this->coach)->put("/coach/courses/{$course->id}", [
+            'title' => '既存コース',
+            'category_id' => $this->category->id,
+            'description' => '更新された説明文です。',
+            'difficulty' => 'intermediate',
+            'status' => 'published',
+        ]);
+
+        $response->assertSessionHasErrors('title');
+    }
+
     public function test_coach_cannot_update_course_with_new_tags_longer_than_255_characters(): void
     {
         $course = Course::factory()->create([
@@ -460,6 +545,12 @@ class CourseTest extends TestCase
         ]);
     }
 
+    // =========================================================================
+    // コース削除
+    // =========================================================================
+
+    // --- 正常系 ---
+
     public function test_coach_can_delete_own_course(): void
     {
         $course = Course::factory()->create([
@@ -473,6 +564,8 @@ class CourseTest extends TestCase
         $this->assertDatabaseMissing('courses', ['id' => $course->id]);
     }
 
+    // --- 異常系 ---
+
     public function test_coach_cannot_delete_other_coaches_course(): void
     {
         $otherCoach = User::factory()->create(['role' => 'coach']);
@@ -484,62 +577,5 @@ class CourseTest extends TestCase
         $response = $this->actingAs($this->coach)->delete("/coach/courses/{$course->id}");
 
         $response->assertStatus(403);
-    }
-
-    public function test_student_cannot_create_course(): void
-    {
-        $response = $this->actingAs($this->student)->get('/coach/courses/create');
-
-        $response->assertStatus(403);
-    }
-
-    public function test_course_list_can_be_filtered_by_category(): void
-    {
-        $otherCategory = Category::factory()->create();
-
-        Course::factory()->create([
-            'user_id' => $this->coach->id,
-            'category_id' => $this->category->id,
-            'status' => 'published',
-            'title' => 'カテゴリAのコース',
-        ]);
-
-        Course::factory()->create([
-            'user_id' => $this->coach->id,
-            'category_id' => $otherCategory->id,
-            'status' => 'published',
-            'title' => 'カテゴリBのコース',
-        ]);
-
-        $response = $this->actingAs($this->student)
-            ->get("/courses?category={$this->category->id}");
-
-        $response->assertStatus(200);
-        $response->assertSee('カテゴリAのコース');
-        $response->assertDontSee('カテゴリBのコース');
-    }
-
-    public function test_course_list_can_be_searched(): void
-    {
-        Course::factory()->create([
-            'user_id' => $this->coach->id,
-            'category_id' => $this->category->id,
-            'status' => 'published',
-            'title' => 'Laravel入門',
-        ]);
-
-        Course::factory()->create([
-            'user_id' => $this->coach->id,
-            'category_id' => $this->category->id,
-            'status' => 'published',
-            'title' => 'React基礎',
-        ]);
-
-        $response = $this->actingAs($this->student)
-            ->get('/courses?search=Laravel');
-
-        $response->assertStatus(200);
-        $response->assertSee('Laravel入門');
-        $response->assertDontSee('React基礎');
     }
 }
