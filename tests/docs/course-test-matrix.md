@@ -40,7 +40,7 @@ Course に関連するが、別機能（受講登録・レビュー・小テス�
 | 受講生 | 許可 ✅ `test_student_can_view_published_course`（CourseTest / CoursePolicyTest 両方） | 禁止 ✅ `test_student_cannot_view_draft_course` | 禁止 ✅ `test_student_cannot_view_archived_course` |
 | コーチ（自分のコース） | 許可 ✅ `test_course_author_can_view_own_published_course` | 許可 ✅ `test_course_author_can_view_own_draft_course` | 許可 ✅ `test_course_author_can_view_own_archived_course` |
 | コーチ（他コーチのコース） | 許可 ✅ `test_coach_can_view_other_coachs_published_course` | 禁止 ✅ `test_coach_cannot_view_other_coachs_draft_course` | 禁止 ✅ `test_coach_cannot_view_other_coachs_archived_course` |
-| 管理者 | 許可 ❌ 未テスト | 許可 ✅ `test_admin_can_view_draft_course` | 許可 ❌ 未テスト |
+| 管理者 | 許可 ✅ `test_admin_can_view_published_course` | 許可 ✅ `test_admin_can_view_draft_course` | 許可 ✅ `test_admin_can_view_archived_course` |
 
 根拠: `App\Policies\CoursePolicy::view`（`admin` または `course.user_id === user.id` なら常に許可、それ以外は `status === 'published'` のときのみ許可）。
 
