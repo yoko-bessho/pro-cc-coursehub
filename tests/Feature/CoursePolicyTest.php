@@ -117,6 +117,18 @@ class CoursePolicyTest extends TestCase
         $response->assertStatus(403);
     }
 
+    public function test_coach_can_view_other_coachs_published_course(): void
+    {
+        $course = Course::factory()->published()->create([
+            'user_id' => $this->coach->id,
+            'category_id' => $this->category->id,
+        ]);
+
+        $response = $this->actingAs($this->otherCoach)->get("/courses/{$course->id}");
+
+        $response->assertStatus(200);
+    }
+
     public function test_coach_cannot_view_other_coachs_draft_course(): void
     {
         $course = Course::factory()->draft()->create([
