@@ -336,6 +336,29 @@ class CourseTest extends TestCase
         );
     }
 
+    public function test_coach_can_create_distinct_tags_from_japanese_only_names(): void
+    {
+        $response = $this->actingAs($this->coach)->post('/coach/courses', [
+            'title' => '日本語タグコース',
+            'category_id' => $this->category->id,
+            'description' => 'テストコースの説明文です。',
+            'difficulty' => 'beginner',
+            'status' => 'draft',
+            'new_tags' => '初心者向け,フロントエンド',
+        ]);
+
+        $response->assertRedirect('/coach/courses');
+
+        $this->assertDatabaseHas('tags', ['name' => '初心者向け']);
+        $this->assertDatabaseHas('tags', ['name' => 'フロントエンド']);
+
+        $course = Course::where('title', '日本語タグコース')->first();
+        $this->assertEqualsCanonicalizing(
+            ['初心者向け', 'フロントエンド'],
+            $course->tags()->pluck('name')->toArray()
+        );
+    }
+
     public function test_initial_chapter_is_created_when_creating_course(): void
     {
         $response = $this->actingAs($this->coach)->post('/coach/courses', [

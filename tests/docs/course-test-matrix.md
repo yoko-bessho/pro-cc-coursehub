@@ -1,6 +1,6 @@
 # Course関連テスト 網羅マトリクス
 
-更新日: 2026-10-13
+更新日: 2026-10-14
 
 ## 対象ファイル
 
@@ -68,6 +68,7 @@ Course に関連するが、別機能（受講登録・レビュー・小テス�
 | 正常系 | status=publishedのとき published_at が設定される | `test_published_at_is_set_when_status_is_published` |
 | 正常系 | 既存タグを紐付けられる | `test_coach_can_sync_existing_tags_when_creating_course` |
 | 正常系 | 新規タグを作成して紐付けられる | `test_coach_can_create_new_tags_when_creating_course` |
+| 正常系 | 日本語のみの異なる新規タグ名でも別々のタグとして作成される（`TagService`のslug衝突バグ修正） | `test_coach_can_create_distinct_tags_from_japanese_only_names` |
 | 正常系 | 作成時に初期チャプター（「はじめに」）が自動生成される | `test_initial_chapter_is_created_when_creating_course` |
 | 異常系 | 同一コーチが同じタイトルのコースを作成できない | `test_coach_cannot_create_course_with_duplicate_title` |
 | 異常系 | 新規タグが255文字を超える場合は作成できない | `test_coach_cannot_create_course_with_new_tags_longer_than_255_characters` |
@@ -95,6 +96,9 @@ Course に関連するが、別機能（受講登録・レビュー・小テス�
 
 - **管理者はコース内容を編集する手段を持たない**: `CoursePolicy::create()` は `role === 'coach'` のみ許可、`AdminCourseController` にも作成・更新の手段がない。管理者の役割を「閲覧・削除のみ」と割り切る設計として正しいか要確認（`CourseTest.php` の `test_admin_cannot_create_course` / `test_admin_cannot_update_course` 周辺にコメントあり）。
 - **管理者のコース削除権限がPolicyと矛盾**: `CoursePolicy::delete()` はコース作成者本人のみ許可する実装だが、`AdminCourseController::destroy()` は `authorize()` を呼ばずに誰のコースでも削除できる別ルートを提供している。意図した仕様か、Policy側の実装漏れかが未確定のため、`AdminCourseTest.php` に正常系テストをコメントアウトで保留中（※3参照）。
+- **画像アップロード機能がUIに存在しない**: `StoreCourseRequest` の `image` バリデーションとController側の保存処理は実装されているが、`create.blade.php` / `edit.blade.php` のどちらにも `<input type="file">` も `enctype="multipart/form-data"` もなく、実際のフォームからは到達不可能。`test_coach_can_create_course_with_image` はAPIを直接叩いて検証しているため、この欠落をテストだけでは検知できない。意図的に未公開のAPIレベル機能なのか、UI実装が漏れているだけなのか要確認。
+- **画像の扱いがStore/Updateで非対称**: `UpdateCourseRequest` には `image` バリデーションがなく、`CoachCourseController::update()` も `image_path` を一切更新しない。作成時にアップロードした画像を後から変更・削除する手段が存在しない。上記のUI未実装と合わせて、画像機能の仕様を確認したい。
+- **日本語タグのslug衝突バグ修正の残課題**: `TagService` のタグ名slug生成を `Str::slug($tagName, '-', null)` に変更し、異なる日本語タグ名が同じ空slugで誤って統合されるバグ（`test_coach_can_create_distinct_tags_from_japanese_only_names` で再現・修正）を解消した。ただし全角/半角ASCII文字の表記ゆれ（例: 「ＡＢＣ」と「ABC」）は依然として別タグとして扱われる。実害が確認されるまではこのまま許容する判断とした。
 
 ## 未カバー・ギャップ
 
@@ -104,3 +108,6 @@ Course に関連するが、別機能（受講登録・レビュー・小テス�
 - **Form Request の個別バリデーション**: `StoreCourseRequest` / `UpdateCourseRequest` のうち、`title` の重複チェックと `new_tags` の255文字超のみがテスト対象。必須項目欠落（title/category_id/description/difficulty/status）、`category_id` が存在しない値、`difficulty`/`status` の許容値外、画像の形式・サイズ超過（`StoreCourseRequest`）は未テスト。
 - **一覧表示の絞り込み**: `difficulty` パラメータによる絞り込みは実装済みだが未テスト。下書き・アーカイブ済みコースが一覧に表示されないことを直接検証するテストもない（`status=published` 固定のため間接的には保証されている）。
 - **検索の対象範囲**: `search` はタイトル・説明の両方に一致するが、説明文側のマッチは未テスト。
+- **コースタイトルの一意性がDBレベルで保証されていない**: `database/migrations/2024_01_15_000003_create_courses_table.php` の `title` 列にunique制約がなく、「同一コーチ内で重複不可」は `StoreCourseRequest`/`UpdateCourseRequest` の `Rule::unique()` のみに依存している。同時リクエストでの競合（race condition）を防げない。
+- **`description` に長さ上限のバリデーションがない**: DBは `text` 型（最大65,535文字）なので実害は小さいが、上限を超える入力時の挙動は未検証。
+- **`tags.name` にunique制約がない**: 同名で異なるslugのタグが複数作成されうる（表記ゆれ由来、低優先度）。
