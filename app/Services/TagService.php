@@ -35,8 +35,17 @@ class TagService
         $tagNames = array_unique(array_filter(array_map('trim', explode(',', $newTagsInput))));
 
         return array_map(function (string $tagName) {
+            // 第3引数をnullにしてascii変換をスキップし、日本語などの非ASCII文字も保持する。
+            // 変換しない場合、Str::slug()はASCIIへの変換時に日本語を除去して空文字を返すため、
+            // 異なるタグ名が同じ空slugに一致し誤って同一タグとして扱われてしまう。
+            $slug = Str::slug($tagName, '-', null);
+
+            if ($slug === '') {
+                $slug = 'tag-'.Str::random(8);
+            }
+
             $tag = Tag::firstOrCreate(
-                ['slug' => Str::slug($tagName)],
+                ['slug' => $slug],
                 ['name' => $tagName]
             );
 
