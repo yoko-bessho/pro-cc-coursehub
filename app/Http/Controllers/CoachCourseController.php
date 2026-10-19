@@ -10,6 +10,7 @@ use App\Models\Course;
 use App\Models\Tag;
 use App\Services\TagService;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 class CoachCourseController extends Controller
@@ -175,9 +176,21 @@ class CoachCourseController extends Controller
      */
     private function storeCourseImage(UploadedFile $image): string|false
     {
-        $fileName = time().'_'.Str::random(10).'.'.$image->getClientOriginalExtension();
+        // getClientOriginalExtension()はクライアント提供のファイル名由来で偽装可能なため、
+        // 実際のMIMEタイプから拡張子を導出するextension()を使う(画像/PHPポリグロットによる拡張子偽装対策)
+        $fileName = time().'_'.Str::random(10).'.'.$image->extension();
 
         return $image->storeAs('courses', $fileName, 'public');
+    }
+
+    /**
+     * 指定されたパスの画像ファイルが存在する場合、ストレージから削除する
+     */
+    private function deleteCourseImage(?string $path): void
+    {
+        if ($path) {
+            Storage::disk('public')->delete($path);
+        }
     }
 
     public function edit(Course $course)
@@ -197,16 +210,44 @@ class CoachCourseController extends Controller
 
         $validated = $request->validated();
 
+        $oldImagePath = $course->image_path;
+        $imagePath = $oldImagePath;
+        $shouldDeleteOldImage = false;
+
+        if ($request->hasFile('image')) {
+            $newImagePath = $this->storeCourseImage($request->file('image'));
+
+            if (! $newImagePath) {
+                return back()->withInput()->withErrors([
+                    'image' => '画像のアップロードに失敗しました。',
+                ]);
+            }
+
+            $imagePath = $newImagePath;
+            // 置き換え前の画像が存在した場合のみ削除対象にする
+            $shouldDeleteOldImage = $oldImagePath !== null;
+        } elseif ($request->boolean('remove_image')) {
+            $imagePath = null;
+            // 削除対象の画像が存在した場合のみ削除対象にする（元々未設定なら何もしない）
+            $shouldDeleteOldImage = $oldImagePath !== null;
+        }
+
         $course->update([
             'title' => $validated['title'],
             'category_id' => $validated['category_id'],
             'description' => $validated['description'],
             'difficulty' => $validated['difficulty'],
             'status' => $validated['status'],
+            'image_path' => $imagePath,
             'published_at' => $validated['status'] === 'published' && ! $course->published_at ? now() : $course->published_at,
         ]);
 
         $this->tagService->syncCourseTags($course, $validated['tags'] ?? [], $validated['new_tags'] ?? null);
+
+        // DB更新が確定した後に旧画像を削除する（先に消すとDB更新失敗時に不整合が残るため）
+        if ($shouldDeleteOldImage) {
+            $this->deleteCourseImage($oldImagePath);
+        }
 
         return redirect()->route('coach.courses.index')
             ->with('success', 'コースを更新しました。');

@@ -145,6 +145,38 @@ class CourseTest extends TestCase
         $response->assertDontSee('React基礎');
     }
 
+    public function test_course_list_displays_thumbnail_image_when_course_has_image(): void
+    {
+        Storage::fake('public');
+
+        Course::factory()->create([
+            'user_id' => $this->coach->id,
+            'category_id' => $this->category->id,
+            'status' => 'published',
+            'image_path' => 'courses/test.jpg',
+        ]);
+
+        $response = $this->actingAs($this->student)->get('/courses');
+
+        $response->assertStatus(200);
+        $response->assertSee(Storage::disk('public')->url('courses/test.jpg'), false);
+    }
+
+    public function test_course_list_does_not_render_image_tag_when_course_has_no_image(): void
+    {
+        Course::factory()->create([
+            'user_id' => $this->coach->id,
+            'category_id' => $this->category->id,
+            'status' => 'published',
+            'image_path' => null,
+        ]);
+
+        $response = $this->actingAs($this->student)->get('/courses');
+
+        $response->assertStatus(200);
+        $response->assertDontSee('<img', false);
+    }
+
     // =========================================================================
     // コース詳細表示
     // =========================================================================
@@ -163,6 +195,38 @@ class CourseTest extends TestCase
 
         $response->assertStatus(200);
         $response->assertSee($course->title);
+    }
+
+    public function test_course_detail_page_displays_image_when_course_has_image(): void
+    {
+        Storage::fake('public');
+
+        $course = Course::factory()->create([
+            'user_id' => $this->coach->id,
+            'category_id' => $this->category->id,
+            'status' => 'published',
+            'image_path' => 'courses/test.jpg',
+        ]);
+
+        $response = $this->actingAs($this->student)->get("/courses/{$course->id}");
+
+        $response->assertStatus(200);
+        $response->assertSee(Storage::disk('public')->url('courses/test.jpg'), false);
+    }
+
+    public function test_course_detail_page_does_not_render_image_tag_when_course_has_no_image(): void
+    {
+        $course = Course::factory()->create([
+            'user_id' => $this->coach->id,
+            'category_id' => $this->category->id,
+            'status' => 'published',
+            'image_path' => null,
+        ]);
+
+        $response = $this->actingAs($this->student)->get("/courses/{$course->id}");
+
+        $response->assertStatus(200);
+        $response->assertDontSee('<img', false);
     }
 
     // =========================================================================
@@ -520,6 +584,119 @@ class CourseTest extends TestCase
             [$existingTag->name, 'Vue.js'],
             $course->tags()->pluck('name')->toArray()
         );
+    }
+
+    public function test_coach_can_replace_existing_course_image_when_updating(): void
+    {
+        Storage::fake('public');
+
+        $oldPath = UploadedFile::fake()->image('old.jpg')->store('courses', 'public');
+
+        $course = Course::factory()->create([
+            'user_id' => $this->coach->id,
+            'category_id' => $this->category->id,
+            'image_path' => $oldPath,
+        ]);
+
+        $response = $this->actingAs($this->coach)->put("/coach/courses/{$course->id}", [
+            'title' => $course->title,
+            'category_id' => $this->category->id,
+            'description' => $course->description,
+            'difficulty' => $course->difficulty,
+            'status' => $course->status,
+            'image' => UploadedFile::fake()->image('new.jpg'),
+        ]);
+
+        $response->assertRedirect('/coach/courses');
+
+        $course->refresh();
+        $this->assertNotEquals($oldPath, $course->image_path);
+        Storage::disk('public')->assertExists($course->image_path);
+        Storage::disk('public')->assertMissing($oldPath);
+    }
+
+    public function test_coach_can_remove_course_image_when_updating(): void
+    {
+        Storage::fake('public');
+
+        $oldPath = UploadedFile::fake()->image('old.jpg')->store('courses', 'public');
+
+        $course = Course::factory()->create([
+            'user_id' => $this->coach->id,
+            'category_id' => $this->category->id,
+            'image_path' => $oldPath,
+        ]);
+
+        $response = $this->actingAs($this->coach)->put("/coach/courses/{$course->id}", [
+            'title' => $course->title,
+            'category_id' => $this->category->id,
+            'description' => $course->description,
+            'difficulty' => $course->difficulty,
+            'status' => $course->status,
+            'remove_image' => '1',
+        ]);
+
+        $response->assertRedirect('/coach/courses');
+
+        $this->assertNull($course->fresh()->image_path);
+        Storage::disk('public')->assertMissing($oldPath);
+    }
+
+    public function test_updating_course_without_image_fields_leaves_existing_image_untouched(): void
+    {
+        Storage::fake('public');
+
+        $existingPath = UploadedFile::fake()->image('existing.jpg')->store('courses', 'public');
+
+        $course = Course::factory()->create([
+            'user_id' => $this->coach->id,
+            'category_id' => $this->category->id,
+            'image_path' => $existingPath,
+        ]);
+
+        $response = $this->actingAs($this->coach)->put("/coach/courses/{$course->id}", [
+            'title' => $course->title,
+            'category_id' => $this->category->id,
+            'description' => $course->description,
+            'difficulty' => $course->difficulty,
+            'status' => $course->status,
+        ]);
+
+        $response->assertRedirect('/coach/courses');
+
+        $this->assertSame($existingPath, $course->fresh()->image_path);
+        Storage::disk('public')->assertExists($existingPath);
+    }
+
+    public function test_new_image_upload_takes_precedence_over_remove_image_checkbox(): void
+    {
+        Storage::fake('public');
+
+        $oldPath = UploadedFile::fake()->image('old.jpg')->store('courses', 'public');
+
+        $course = Course::factory()->create([
+            'user_id' => $this->coach->id,
+            'category_id' => $this->category->id,
+            'image_path' => $oldPath,
+        ]);
+
+        $response = $this->actingAs($this->coach)->put("/coach/courses/{$course->id}", [
+            'title' => $course->title,
+            'category_id' => $this->category->id,
+            'description' => $course->description,
+            'difficulty' => $course->difficulty,
+            'status' => $course->status,
+            'image' => UploadedFile::fake()->image('new.jpg'),
+            'remove_image' => '1',
+        ]);
+
+        $response->assertRedirect('/coach/courses');
+
+        $course->refresh();
+        $this->assertNotNull($course->image_path);
+        $this->assertNotEquals($oldPath, $course->image_path);
+        Storage::disk('public')->assertExists($course->image_path);
+        Storage::disk('public')->assertMissing($oldPath);
     }
 
     // --- 異常系 ---

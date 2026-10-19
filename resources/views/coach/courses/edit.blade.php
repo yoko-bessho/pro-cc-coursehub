@@ -8,7 +8,9 @@
     </div>
 
     <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-        <form method="POST" action="{{ route('coach.courses.update', $course) }}" x-data="{ submitting: false }" @submit="submitting = true">
+        <form method="POST" action="{{ route('coach.courses.update', $course) }}" enctype="multipart/form-data"
+            x-data="{ submitting: false, imagePreview: null, removeImage: {{ old('remove_image') ? 'true' : 'false' }} }"
+            @submit="submitting = true">
             @csrf
             @method('PUT')
 
@@ -31,6 +33,38 @@
                 <label for="description" class="block text-sm font-medium text-gray-700 mb-1">概要</label>
                 <textarea name="description" id="description" rows="4" required
                     class="w-full rounded-lg border-gray-300 shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 px-3 py-2.5 border">{{ old('description', $course->description) }}</textarea>
+            </div>
+
+            <div class="mb-5">
+                <label class="block text-sm font-medium text-gray-700 mb-1">サムネイル画像</label>
+
+                @if($course->image_url)
+                    <div x-show="!removeImage" class="mb-3">
+                        <img src="{{ $course->image_url }}" alt="{{ $course->title }}" class="w-full max-w-xs object-contain rounded-lg border border-gray-200">
+                    </div>
+
+                    <label class="flex items-center cursor-pointer mb-3">
+                        <input type="checkbox" name="remove_image" value="1" x-model="removeImage"
+                            @change="if (removeImage) { imagePreview = null; $refs.imageInput.value = ''; }"
+                            class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                        <span class="ml-1.5 text-sm text-gray-700">現在の画像を削除する</span>
+                    </label>
+                @endif
+
+                <input type="file" name="image" id="image" x-ref="imageInput" accept="image/jpeg,image/png,image/jpg,image/gif"
+                    @change="imagePreview = $event.target.files.length ? URL.createObjectURL($event.target.files[0]) : null; if ($event.target.files.length) removeImage = false"
+                    class="block w-full text-sm text-gray-700 border border-gray-300 rounded-lg shadow-sm cursor-pointer
+                        focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500
+                        file:mr-4 file:py-2.5 file:px-4 file:border-0 file:rounded-l-lg
+                        file:text-sm file:font-medium file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100">
+                <p class="mt-1 text-xs text-gray-500">JPEG, PNG, GIF形式、2MBまで。新しい画像を選択すると現在の画像と置き換わります。</p>
+                @error('image')
+                    <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+                @enderror
+
+                <template x-if="imagePreview">
+                    <img :src="imagePreview" alt="プレビュー" class="mt-3 w-full max-w-xs object-contain rounded-lg border border-gray-200">
+                </template>
             </div>
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-5 mb-5">
