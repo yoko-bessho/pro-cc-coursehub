@@ -5,28 +5,33 @@
     {{-- コース情報ヘッダー --}}
     <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-6">
         <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-            <div class="flex-1">
-                <h1 class="text-2xl font-bold text-gray-900 mb-3">{{ $course->title }}</h1>
-                <div class="flex flex-wrap items-center gap-3 text-sm text-gray-500 mb-4">
-                    <span class="flex items-center gap-1">
-                        <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
-                        {{ $course->user->name }}
-                    </span>
-                    <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium
-                        {{ $course->difficulty === 'beginner' ? 'bg-green-50 text-green-700' : ($course->difficulty === 'intermediate' ? 'bg-amber-50 text-amber-700' : 'bg-red-50 text-red-700') }}">
-                        {{ $course->difficulty === 'beginner' ? '初級' : ($course->difficulty === 'intermediate' ? '中級' : '上級') }}
-                    </span>
-                    @if($course->category)
-                        <span class="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-700">{{ $course->category->name }}</span>
+            <div class="flex flex-col sm:flex-row gap-4 flex-1">
+                @if($course->image_url)
+                    <img src="{{ $course->image_url }}" alt="{{ $course->title }}" class="w-full sm:max-w-[16%] h-auto rounded-lg shrink-0">
+                @endif
+                <div class="flex-1">
+                    <h1 class="text-2xl font-bold text-gray-900 mb-3">{{ $course->title }}</h1>
+                    <div class="flex flex-wrap items-center gap-3 text-sm text-gray-500 mb-4">
+                        <span class="flex items-center gap-1">
+                            <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+                            {{ $course->user->name }}
+                        </span>
+                        <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium
+                            {{ $course->difficulty === 'beginner' ? 'bg-green-50 text-green-700' : ($course->difficulty === 'intermediate' ? 'bg-amber-50 text-amber-700' : 'bg-red-50 text-red-700') }}">
+                            {{ $course->difficulty === 'beginner' ? '初級' : ($course->difficulty === 'intermediate' ? '中級' : '上級') }}
+                        </span>
+                        @if($course->category)
+                            <span class="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-700">{{ $course->category->name }}</span>
+                        @endif
+                    </div>
+                    @if($course->tags->isNotEmpty())
+                        <div class="flex flex-wrap gap-2 mb-4">
+                            @foreach($course->tags as $tag)
+                                <span class="inline-flex items-center rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-medium text-indigo-700">{{ $tag->name }}</span>
+                            @endforeach
+                        </div>
                     @endif
                 </div>
-                @if($course->tags->isNotEmpty())
-                    <div class="flex flex-wrap gap-2 mb-4">
-                        @foreach($course->tags as $tag)
-                            <span class="inline-flex items-center rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-medium text-indigo-700">{{ $tag->name }}</span>
-                        @endforeach
-                    </div>
-                @endif
             </div>
 
             @if(auth()->user()->isStudent())

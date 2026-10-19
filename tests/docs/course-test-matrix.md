@@ -1,6 +1,6 @@
 # Course関連テスト 網羅マトリクス
 
-更新日: 2026-10-14
+更新日: 2026-10-17
 
 ## 対象ファイル
 
@@ -9,6 +9,7 @@ Course エンティティ自体（CRUD・一覧表示・アクセス制御・進
 - `tests/Feature/CourseTest.php` — コースの一覧表示・詳細表示・作成・更新・削除
 - `tests/Feature/CoursePolicyTest.php` — コース閲覧のアクセス制御（Policy）
 - `tests/Feature/CourseProgressRateTest.php` — コース単位の受講生別進捗率計算
+- `tests/Feature/AdminCourseTest.php` — 管理者によるコース一覧表示・削除
 
 Course に関連するが、別機能（受講登録・レビュー・小テストなど）が主対象のテストは対象外。
 `MyCoursesTest`, `EnrollmentTest`, `ReviewTest`, `QuizRetakeTest`, `QuizSubmitTest`, `AdminStudentTest`, `CoachStudentsTest` が該当する。
@@ -56,6 +57,15 @@ Course に関連するが、別機能（受講登録・レビュー・小テス�
 | 正常系 | チャプター・受講者が0件のとき「0件」と表示される | `test_course_list_displays_zero_counts_when_course_has_no_chapters_or_enrollments` |
 | 正常系 | カテゴリで絞り込める | `test_course_list_can_be_filtered_by_category` |
 | 正常系 | キーワードで検索できる（タイトル一致） | `test_course_list_can_be_searched` |
+| 正常系 | サムネイル画像があれば表示される | `test_course_list_displays_thumbnail_image_when_course_has_image` |
+| 正常系 | 画像が無い場合は`<img>`タグを描画しない（プレースホルダーのみ） | `test_course_list_does_not_render_image_tag_when_course_has_no_image` |
+
+### 詳細表示の表示内容
+
+| 区分 | 検証内容 | テストメソッド |
+|---|---|---|
+| 正常系 | 画像があれば表示される | `test_course_detail_page_displays_image_when_course_has_image` |
+| 正常系 | 画像が無い場合は`<img>`タグを描画しない | `test_course_detail_page_does_not_render_image_tag_when_course_has_no_image` |
 
 ### コース作成の業務ロジック
 
@@ -79,6 +89,10 @@ Course に関連するが、別機能（受講登録・レビュー・小テス�
 |---|---|---|
 | 正常系 | 既存タグの同期と新規タグの作成を同時に行える | `test_coach_can_sync_tags_and_create_new_tags_when_updating_course` |
 | 正常系 | 自分の現タイトルを維持したまま更新できる（unique制約の自己除外） | `test_coach_can_update_course_while_keeping_its_own_title` |
+| 正常系 | 既存画像を新しい画像に差し替えられる（旧ファイルは削除される） | `test_coach_can_replace_existing_course_image_when_updating` |
+| 正常系 | 「現在の画像を削除」チェックで既存画像を未設定に戻せる（旧ファイルは削除される） | `test_coach_can_remove_course_image_when_updating` |
+| 正常系 | `image`も`remove_image`も送らなければ既存画像は変化しない | `test_updating_course_without_image_fields_leaves_existing_image_untouched` |
+| 正常系 | `image`と`remove_image`を同時に送った場合は新しい画像が優先される | `test_new_image_upload_takes_precedence_over_remove_image_checkbox` |
 | 異常系 | 自分の他コースと同じタイトルには更新できない | `test_coach_cannot_update_course_with_title_already_used_by_another_own_course` |
 | 異常系 | 新規タグが255文字を超える場合は更新できない | `test_coach_cannot_update_course_with_new_tags_longer_than_255_characters` |
 
@@ -96,8 +110,6 @@ Course に関連するが、別機能（受講登録・レビュー・小テス�
 
 - **管理者はコース内容を編集する手段を持たない**: `CoursePolicy::create()` は `role === 'coach'` のみ許可、`AdminCourseController` にも作成・更新の手段がない。管理者の役割を「閲覧・削除のみ」と割り切る設計として正しいか要確認（`CourseTest.php` の `test_admin_cannot_create_course` / `test_admin_cannot_update_course` 周辺にコメントあり）。
 - **管理者のコース削除権限がPolicyと矛盾**: `CoursePolicy::delete()` はコース作成者本人のみ許可する実装だが、`AdminCourseController::destroy()` は `authorize()` を呼ばずに誰のコースでも削除できる別ルートを提供している。意図した仕様か、Policy側の実装漏れかが未確定のため、`AdminCourseTest.php` に正常系テストをコメントアウトで保留中（※3参照）。
-- **画像アップロード機能がUIに存在しない**: `StoreCourseRequest` の `image` バリデーションとController側の保存処理は実装されているが、`create.blade.php` / `edit.blade.php` のどちらにも `<input type="file">` も `enctype="multipart/form-data"` もなく、実際のフォームからは到達不可能。`test_coach_can_create_course_with_image` はAPIを直接叩いて検証しているため、この欠落をテストだけでは検知できない。意図的に未公開のAPIレベル機能なのか、UI実装が漏れているだけなのか要確認。
-- **画像の扱いがStore/Updateで非対称**: `UpdateCourseRequest` には `image` バリデーションがなく、`CoachCourseController::update()` も `image_path` を一切更新しない。作成時にアップロードした画像を後から変更・削除する手段が存在しない。上記のUI未実装と合わせて、画像機能の仕様を確認したい。
 - **日本語タグのslug衝突バグ修正の残課題**: `TagService` のタグ名slug生成を `Str::slug($tagName, '-', null)` に変更し、異なる日本語タグ名が同じ空slugで誤って統合されるバグ（`test_coach_can_create_distinct_tags_from_japanese_only_names` で再現・修正）を解消した。ただし全角/半角ASCII文字の表記ゆれ（例: 「ＡＢＣ」と「ABC」）は依然として別タグとして扱われる。実害が確認されるまではこのまま許容する判断とした。
 
 ## 未カバー・ギャップ

@@ -8,7 +8,7 @@
     </div>
 
     <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-        <form method="POST" action="{{ route('coach.courses.store') }}" x-data="{ submitting: false }" @submit="submitting = true">
+        <form method="POST" action="{{ route('coach.courses.store') }}" enctype="multipart/form-data" x-data="{ submitting: false, imagePreview: null }" @submit="submitting = true">
             @csrf
 
             <div class="mb-5">
@@ -31,6 +31,24 @@
                 <label for="description" class="block text-sm font-medium text-gray-700 mb-1">概要</label>
                 <textarea name="description" id="description" rows="4" required
                     class="w-full rounded-lg border-gray-300 shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 px-3 py-2.5 border">{{ old('description') }}</textarea>
+            </div>
+
+            <div class="mb-5">
+                <label for="image" class="block text-sm font-medium text-gray-700 mb-1">サムネイル画像</label>
+                <input type="file" name="image" id="image" accept="image/jpeg,image/png,image/jpg,image/gif"
+                    @change="imagePreview = $event.target.files.length ? URL.createObjectURL($event.target.files[0]) : null"
+                    class="block w-full text-sm text-gray-700 border border-gray-300 rounded-lg shadow-sm cursor-pointer
+                        focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500
+                        file:mr-4 file:py-2.5 file:px-4 file:border-0 file:rounded-l-lg
+                        file:text-sm file:font-medium file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100">
+                <p class="mt-1 text-xs text-gray-500">JPEG, PNG, GIF形式、2MBまで</p>
+                @error('image')
+                    <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+                @enderror
+
+                <template x-if="imagePreview">
+                    <img :src="imagePreview" alt="プレビュー" class="mt-3 w-full max-w-xs object-contain rounded-lg border border-gray-200">
+                </template>
             </div>
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-5 mb-5">

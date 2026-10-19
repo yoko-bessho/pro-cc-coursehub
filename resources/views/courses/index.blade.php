@@ -40,18 +40,27 @@
     {{-- コースグリッド --}}
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         @forelse($courses as $course)
-            <a href="{{ route('courses.show', $course) }}" class="group bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow duration-200 overflow-hidden">
-                <div class="p-6">
-                    <div class="flex items-center justify-between mb-3">
+            <a href="{{ route('courses.show', $course) }}" class="group bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow duration-200 overflow-hidden aspect-[5/4] flex flex-col">
+                <div class="p-6 flex flex-col h-full">
+                    <div class="w-24 h-24 mx-auto mb-4 rounded-lg bg-gray-100 flex items-center justify-center overflow-hidden shrink-0">
+                        @if($course->image_url)
+                            <img src="{{ $course->image_url }}" alt="{{ $course->title }}" class="w-full h-full object-cover">
+                        @else
+                            <svg class="w-8 h-8 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                            </svg>
+                        @endif
+                    </div>
+                    <div class="flex items-center justify-between mb-3 shrink-0">
                         <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium
                             {{ $course->difficulty === 'beginner' ? 'bg-green-50 text-green-700' : ($course->difficulty === 'intermediate' ? 'bg-amber-50 text-amber-700' : 'bg-red-50 text-red-700') }}">
                             {{ $course->difficulty === 'beginner' ? '初級' : ($course->difficulty === 'intermediate' ? '中級' : '上級') }}
                         </span>
                         <span class="text-xs text-gray-500">{{ $course->category->name ?? '' }}</span>
                     </div>
-                    <h2 class="text-lg font-semibold text-gray-900 group-hover:text-indigo-600 transition-colors mb-2">{{ $course->title }}</h2>
+                    <h2 class="text-lg font-semibold text-gray-900 group-hover:text-indigo-600 transition-colors mb-2 shrink-0">{{ $course->title }}</h2>
                     <p class="text-sm text-gray-500 mb-4 line-clamp-2">{{ Str::limit($course->description, 100) }}</p>
-                    <div class="flex items-center gap-3 text-xs text-gray-400">
+                    <div class="flex items-center gap-3 text-xs text-gray-400 mt-auto shrink-0">
                         <span class="flex items-center gap-1">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
                             {{ $course->user->name ?? '不明' }}
