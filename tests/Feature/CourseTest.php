@@ -8,6 +8,8 @@ use App\Models\Course;
 use App\Models\Enrollment;
 use App\Models\Tag;
 use App\Models\User;
+use App\Services\TagService;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -507,6 +509,73 @@ class CourseTest extends TestCase
         $this->assertDatabaseMissing('courses', ['title' => '管理者作成コース']);
     }
 
+    // --- トランザクション・整合性 ---
+
+    public function test_course_creation_is_rolled_back_and_uploaded_image_removed_when_tag_sync_fails(): void
+    {
+        Storage::fake('public');
+
+        $this->mock(TagService::class)
+            ->shouldReceive('syncCourseTags')
+            ->andThrow(new \RuntimeException('tag sync failed'));
+
+        $response = $this->actingAs($this->coach)->post('/coach/courses', [
+            'title' => 'ロールバックコース',
+            'category_id' => $this->category->id,
+            'description' => 'テストコースの説明文です。',
+            'difficulty' => 'beginner',
+            'status' => 'published',
+            'image' => UploadedFile::fake()->image('course.jpg'),
+        ]);
+
+        $response->assertSessionHasErrors('error');
+        $this->assertDatabaseMissing('courses', ['title' => 'ロールバックコース']);
+        $this->assertDatabaseCount('chapters', 0);
+        $this->assertEmpty(Storage::disk('public')->allFiles());
+    }
+
+    public function test_published_course_is_created_with_published_at_and_initial_chapter(): void
+    {
+        $this->actingAs($this->coach)->post('/coach/courses', [
+            'title' => '初期Chapter確認コース',
+            'category_id' => $this->category->id,
+            'description' => 'テストコースの説明文です。',
+            'difficulty' => 'beginner',
+            'status' => 'published',
+        ]);
+
+        $course = Course::where('title', '初期Chapter確認コース')->first();
+        $this->assertNotNull($course->published_at);
+        $this->assertDatabaseHas('chapters', ['course_id' => $course->id, 'title' => 'はじめに', 'order' => 1]);
+    }
+
+    public function test_database_rejects_duplicate_title_for_same_coach(): void
+    {
+        Course::factory()->create([
+            'user_id' => $this->coach->id,
+            'category_id' => $this->category->id,
+            'title' => '重複タイトル',
+        ]);
+
+        $this->expectException(UniqueConstraintViolationException::class);
+
+        Course::factory()->create([
+            'user_id' => $this->coach->id,
+            'category_id' => $this->category->id,
+            'title' => '重複タイトル',
+        ]);
+    }
+
+    public function test_different_coaches_can_use_the_same_title_at_database_level(): void
+    {
+        $otherCoach = User::factory()->create(['role' => 'coach']);
+
+        Course::factory()->create(['user_id' => $this->coach->id, 'category_id' => $this->category->id, 'title' => '共通タイトル']);
+        Course::factory()->create(['user_id' => $otherCoach->id, 'category_id' => $this->category->id, 'title' => '共通タイトル']);
+
+        $this->assertDatabaseCount('courses', 2);
+    }
+
     // =========================================================================
     // コース更新
     // =========================================================================
@@ -789,6 +858,40 @@ class CourseTest extends TestCase
             'id' => $course->id,
             'title' => '更新前タイトル',
         ]);
+    }
+
+    // --- トランザクション・整合性 ---
+
+    public function test_course_update_is_rolled_back_and_new_image_removed_when_tag_sync_fails(): void
+    {
+        Storage::fake('public');
+
+        $oldPath = UploadedFile::fake()->image('old.jpg')->store('courses', 'public');
+
+        $course = Course::factory()->create([
+            'user_id' => $this->coach->id,
+            'category_id' => $this->category->id,
+            'title' => '更新前タイトル',
+            'image_path' => $oldPath,
+        ]);
+
+        $this->mock(TagService::class)
+            ->shouldReceive('syncCourseTags')
+            ->andThrow(new \RuntimeException('tag sync failed'));
+
+        $response = $this->actingAs($this->coach)->put("/coach/courses/{$course->id}", [
+            'title' => '更新後タイトル',
+            'category_id' => $this->category->id,
+            'description' => $course->description,
+            'difficulty' => $course->difficulty,
+            'status' => $course->status,
+            'image' => UploadedFile::fake()->image('new.jpg'),
+        ]);
+
+        $response->assertSessionHasErrors('error');
+        $this->assertDatabaseHas('courses', ['id' => $course->id, 'title' => '更新前タイトル', 'image_path' => $oldPath]);
+        Storage::disk('public')->assertExists($oldPath);
+        $this->assertCount(1, Storage::disk('public')->allFiles());
     }
 
     // =========================================================================
