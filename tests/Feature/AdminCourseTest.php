@@ -16,6 +16,8 @@ class AdminCourseTest extends TestCase
 
     private User $coach;
 
+    private User $student;
+
     private Category $category;
 
     protected function setUp(): void
@@ -24,6 +26,7 @@ class AdminCourseTest extends TestCase
 
         $this->admin = User::factory()->create(['role' => 'admin']);
         $this->coach = User::factory()->create(['role' => 'coach']);
+        $this->student = User::factory()->create(['role' => 'student']);
         $this->category = Category::factory()->create();
     }
 
@@ -88,6 +91,27 @@ class AdminCourseTest extends TestCase
         $response->assertStatus(403);
     }
 
+    public function test_student_cannot_view_admin_course_list(): void
+    {
+        $response = $this->actingAs($this->student)->get('/admin/courses');
+
+        $response->assertStatus(403);
+    }
+
+    public function test_student_cannot_view_admin_dashboard(): void
+    {
+        $response = $this->actingAs($this->student)->get('/admin');
+
+        $response->assertStatus(403);
+    }
+
+    public function test_guest_cannot_view_admin_course_list(): void
+    {
+        $response = $this->get('/admin/courses');
+
+        $response->assertRedirect('/login');
+    }
+
     // =========================================================================
     // コース削除（管理者）
     // =========================================================================
@@ -124,6 +148,19 @@ class AdminCourseTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->coach)->delete("/admin/courses/{$course->id}");
+
+        $response->assertStatus(403);
+        $this->assertDatabaseHas('courses', ['id' => $course->id]);
+    }
+
+    public function test_student_cannot_delete_course_via_admin_route(): void
+    {
+        $course = Course::factory()->create([
+            'user_id' => $this->coach->id,
+            'category_id' => $this->category->id,
+        ]);
+
+        $response = $this->actingAs($this->student)->delete("/admin/courses/{$course->id}");
 
         $response->assertStatus(403);
         $this->assertDatabaseHas('courses', ['id' => $course->id]);
