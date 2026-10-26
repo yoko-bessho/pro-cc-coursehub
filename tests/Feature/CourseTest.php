@@ -2,12 +2,14 @@
 
 namespace Tests\Feature;
 
+use App\Exceptions\CourseImageUploadException;
 use App\Models\Category;
 use App\Models\Chapter;
 use App\Models\Course;
 use App\Models\Enrollment;
 use App\Models\Tag;
 use App\Models\User;
+use App\Services\CourseService;
 use App\Services\TagService;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -576,6 +578,72 @@ class CourseTest extends TestCase
         $this->assertDatabaseCount('courses', 2);
     }
 
+    public function test_create_shows_title_error_when_unique_constraint_is_violated_after_validation(): void
+    {
+        $this->mock(CourseService::class)
+            ->shouldReceive('create')
+            ->andThrow($this->makeUniqueViolation('courses_user_id_title_unique'));
+
+        $response = $this->actingAs($this->coach)->post('/coach/courses', [
+            'title' => '同時作成コース',
+            'category_id' => $this->category->id,
+            'description' => 'テストコースの説明文です。',
+            'difficulty' => 'beginner',
+            'status' => 'draft',
+        ]);
+
+        $response->assertSessionHasErrors(['title' => '同じタイトルのコースが既に存在します。']);
+        $this->assertDatabaseMissing('courses', ['title' => '同時作成コース']);
+    }
+
+    public function test_create_shows_image_error_when_image_upload_fails(): void
+    {
+        $this->mock(CourseService::class)
+            ->shouldReceive('create')
+            ->andThrow(new CourseImageUploadException('画像のアップロードに失敗しました。'));
+
+        $response = $this->actingAs($this->coach)->post('/coach/courses', [
+            'title' => '画像失敗コース',
+            'category_id' => $this->category->id,
+            'description' => 'テストコースの説明文です。',
+            'difficulty' => 'beginner',
+            'status' => 'draft',
+            'image' => UploadedFile::fake()->image('course.jpg'),
+        ]);
+
+        $response->assertSessionHasErrors(['image' => '画像のアップロードに失敗しました。']);
+        $this->assertDatabaseMissing('courses', ['title' => '画像失敗コース']);
+    }
+
+    public function test_service_does_not_create_course_when_image_storage_fails(): void
+    {
+        Storage::fake('public');
+
+        $fake = UploadedFile::fake()->image('course.jpg');
+        $image = new class($fake->getPathname(), 'course.jpg', 'image/jpeg', null, true) extends UploadedFile
+        {
+            public function storeAs($path, $name = null, $options = [])
+            {
+                return false;
+            }
+        };
+
+        try {
+            app(CourseService::class)->create($this->coach, [
+                'title' => '保存失敗コース',
+                'category_id' => $this->category->id,
+                'description' => 'テストコースの説明文です。',
+                'difficulty' => 'beginner',
+                'status' => 'draft',
+            ], $image);
+
+            $this->fail('CourseImageUploadException was not thrown.');
+        } catch (CourseImageUploadException $e) {
+            $this->assertDatabaseMissing('courses', ['title' => '保存失敗コース']);
+            $this->assertEmpty(Storage::disk('public')->allFiles());
+        }
+    }
+
     // =========================================================================
     // コース更新
     // =========================================================================
@@ -894,6 +962,55 @@ class CourseTest extends TestCase
         $this->assertCount(1, Storage::disk('public')->allFiles());
     }
 
+    public function test_update_shows_title_error_when_unique_constraint_is_violated_after_validation(): void
+    {
+        $course = Course::factory()->create([
+            'user_id' => $this->coach->id,
+            'category_id' => $this->category->id,
+            'title' => '更新前タイトル',
+        ]);
+
+        $this->mock(CourseService::class)
+            ->shouldReceive('update')
+            ->andThrow($this->makeUniqueViolation('courses_user_id_title_unique'));
+
+        $response = $this->actingAs($this->coach)->put("/coach/courses/{$course->id}", [
+            'title' => '競合タイトル',
+            'category_id' => $this->category->id,
+            'description' => $course->description,
+            'difficulty' => $course->difficulty,
+            'status' => $course->status,
+        ]);
+
+        $response->assertSessionHasErrors(['title' => '同じタイトルのコースが既に存在します。']);
+        $this->assertDatabaseHas('courses', ['id' => $course->id, 'title' => '更新前タイトル']);
+    }
+
+    public function test_update_shows_image_error_when_image_upload_fails(): void
+    {
+        $course = Course::factory()->create([
+            'user_id' => $this->coach->id,
+            'category_id' => $this->category->id,
+            'title' => '更新前タイトル',
+        ]);
+
+        $this->mock(CourseService::class)
+            ->shouldReceive('update')
+            ->andThrow(new CourseImageUploadException('画像のアップロードに失敗しました。'));
+
+        $response = $this->actingAs($this->coach)->put("/coach/courses/{$course->id}", [
+            'title' => '更新後タイトル',
+            'category_id' => $this->category->id,
+            'description' => $course->description,
+            'difficulty' => $course->difficulty,
+            'status' => $course->status,
+            'image' => UploadedFile::fake()->image('new.jpg'),
+        ]);
+
+        $response->assertSessionHasErrors(['image' => '画像のアップロードに失敗しました。']);
+        $this->assertDatabaseHas('courses', ['id' => $course->id, 'title' => '更新前タイトル']);
+    }
+
     // =========================================================================
     // コース削除
     // =========================================================================
@@ -944,5 +1061,15 @@ class CourseTest extends TestCase
 
         $response->assertStatus(403);
         $this->assertDatabaseHas('courses', ['id' => $course->id]);
+    }
+
+    private function makeUniqueViolation(string $indexName): UniqueConstraintViolationException
+    {
+        return new UniqueConstraintViolationException(
+            'mysql',
+            'insert into `courses` ...',
+            [],
+            new \PDOException("Duplicate entry 'x' for key 'courses.{$indexName}'"),
+        );
     }
 }
