@@ -50,6 +50,8 @@ class CoachCourseController extends Controller
 
     public function store(StoreCourseRequest $request, CourseService $courseService)
     {
+        $this->authorize('create', Course::class);
+
         try {
             $courseService->create(auth()->user(), $request->validated(), $request->file('image'));
         } catch (CourseImageUploadException $e) {
