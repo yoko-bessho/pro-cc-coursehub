@@ -1,6 +1,6 @@
 # Course関連テスト 網羅マトリクス
 
-更新日: 2026-10-17
+更新日: 2026-10-26
 
 ## 対象ファイル
 
@@ -9,7 +9,7 @@ Course エンティティ自体（CRUD・一覧表示・アクセス制御・進
 - `tests/Feature/CourseTest.php` — コースの一覧表示・詳細表示・作成・更新・削除
 - `tests/Feature/CoursePolicyTest.php` — コース閲覧のアクセス制御（Policy）
 - `tests/Feature/CourseProgressRateTest.php` — コース単位の受講生別進捗率計算
-- `tests/Feature/AdminCourseTest.php` — 管理者によるコース一覧表示・削除
+- `tests/Feature/AdminCourseTest.php` — 管理者によるコース一覧表示・削除、管理者画面へのアクセス制御（受講生・コーチ・未ログイン）
 
 Course に関連するが、別機能（受講登録・レビュー・小テストなど）が主対象のテストは対象外。
 `MyCoursesTest`, `EnrollmentTest`, `ReviewTest`, `QuizRetakeTest`, `QuizSubmitTest`, `AdminStudentTest`, `CoachStudentsTest` が該当する。
@@ -21,7 +21,7 @@ Course に関連するが、別機能（受講登録・レビュー・小テス�
 
 | ロール | 一覧表示<br>`GET /courses` | 作成<br>`POST /coach/courses` | 更新<br>`PUT /coach/courses/{id}` | 削除<br>`DELETE /coach/courses/{id}` | 管理者一覧<br>`GET /admin/courses` | 管理者削除<br>`DELETE /admin/courses/{id}` |
 |---|---|---|---|---|---|---|
-| 受講生 | 許可 ✅ `test_student_can_view_course_list` | 禁止 ✅ `test_student_cannot_create_course`※1 | 禁止 ❌ 未テスト | 禁止 ❌ 未テスト | 禁止 ❌ 未テスト | 禁止 ❌ 未テスト |
+| 受講生 | 許可 ✅ `test_student_can_view_course_list` | 禁止 ✅ `test_student_cannot_create_course`※1 | 禁止 ✅ `test_student_cannot_update_course`（編集画面: `test_student_cannot_view_course_edit_form`） | 禁止 ✅ `test_student_cannot_delete_course`（受講登録済み: `test_student_enrolled_in_course_cannot_delete_it`） | 禁止 ✅ `test_student_cannot_view_admin_course_list`（AdminCourseTest） | 禁止 ✅ `test_student_cannot_delete_course_via_admin_route`（AdminCourseTest） |
 | コーチ（自分のコース） | 許可 ❌ 未テスト | 許可 ✅ `test_coach_can_create_course` 他多数 | 許可 ✅ `test_coach_can_update_course` 他 | 許可 ✅ `test_coach_can_delete_own_course` | 禁止 ✅ `test_non_admin_cannot_view_admin_course_list`（AdminCourseTest） | 禁止 ✅ `test_non_admin_cannot_delete_course_via_admin_route`（AdminCourseTest） |
 | コーチ（他コーチのコース） | 許可 ❌ 未テスト | （対象コースなしのため適用外） | 禁止 ✅ `test_coach_cannot_update_other_coachs_course` | 禁止 ✅ `test_coach_cannot_delete_other_coaches_course` | 同上（ownership非依存のため同一テストでカバー） | 同上（ownership非依存のため同一テストでカバー） |
 | 管理者 | 許可 ❌ 未テスト | 禁止 ✅ `test_admin_cannot_create_course`※2 | 禁止 ✅ `test_admin_cannot_update_course`※2 | 禁止 ✅ `test_admin_cannot_delete_course_via_coach_route`※2 | 許可 ✅ `test_admin_can_view_courses_of_any_status`（AdminCourseTest） | 許可 ❌ 未テスト（※3、仕様未確定のためテスト保留中） |
@@ -32,7 +32,9 @@ Course に関連するが、別機能（受講登録・レビュー・小テス�
 
 ※3 `App\Policies\CoursePolicy::delete()` はコース作成者本人のみ許可する実装（`$user->id === $course->user_id`）だが、`AdminCourseController::destroy()` は `$this->authorize()` を呼ばずに `$course->delete()` を直接実行しており、Policyの権限定義と矛盾している。「管理者は他コーチのコースも削除できる」が意図した仕様か、Policy側に管理者許可を足し忘れているだけかが未確定のため、正常系テスト（`tests/Feature/AdminCourseTest.php` にコメントアウトで記述済み）は仕様確定まで保留している。
 
-根拠: `routes/web.php` の `role:coach` / `role:admin` ミドルウェア、`App\Policies\CoursePolicy::create/update/delete`、`App\Http\Middleware\RoleMiddleware`（ロール不一致は無条件403、管理者の特別扱いなし）。
+補足: 受講生の管理者画面へのアクセスは、コース一覧・削除のほか `test_student_cannot_view_admin_dashboard`、未ログインは `test_guest_cannot_view_admin_course_list`（`/login` へリダイレクト）でも確認している（いずれも AdminCourseTest）。
+
+根拠: `routes/web.php` の `role:coach` / `role:admin` ミドルウェア、`App\Policies\CoursePolicy::create/update/delete`（`store` は `authorize('create')` を呼ぶ）、`App\Http\Middleware\RoleMiddleware`（ロール不一致は無条件403、管理者の特別扱いなし）。
 
 ## 権限マトリクス②：詳細表示（`GET /courses/{course}`）× コースstatus
 
@@ -80,6 +82,13 @@ Course に関連するが、別機能（受講登録・レビュー・小テス�
 | 正常系 | 新規タグを作成して紐付けられる | `test_coach_can_create_new_tags_when_creating_course` |
 | 正常系 | 日本語のみの異なる新規タグ名でも別々のタグとして作成される（`TagService`のslug衝突バグ修正） | `test_coach_can_create_distinct_tags_from_japanese_only_names` |
 | 正常系 | 作成時に初期チャプター（「はじめに」）が自動生成される | `test_initial_chapter_is_created_when_creating_course` |
+| 正常系 | 公開で作成すると `published_at` と初期チャプターが1回の作成で設定される | `test_published_course_is_created_with_published_at_and_initial_chapter` |
+| 正常系 | 別コーチであれば同じタイトルを使える（DBの `(user_id, title)` 制約） | `test_different_coaches_can_use_the_same_title_at_database_level` |
+| 異常系 | DBが同一コーチの同一タイトルを拒否する（`(user_id, title)` のunique制約） | `test_database_rejects_duplicate_title_for_same_coach` |
+| 異常系 | タグ同期が失敗するとコース・チャプターがロールバックされ、アップロード済み画像も削除される | `test_course_creation_is_rolled_back_and_uploaded_image_removed_when_tag_sync_fails` |
+| 異常系 | バリデーション通過後にtitleの一意制約違反が起きた場合、`title` エラーで返す | `test_create_shows_title_error_when_unique_constraint_is_violated_after_validation` |
+| 異常系 | 画像アップロード失敗時は `image` エラーで返しコースを作成しない | `test_create_shows_image_error_when_image_upload_fails` |
+| 異常系 | 画像の保存に失敗した場合、Service はコースを作成せず例外を投げる | `test_service_does_not_create_course_when_image_storage_fails` |
 | 異常系 | 同一コーチが同じタイトルのコースを作成できない | `test_coach_cannot_create_course_with_duplicate_title` |
 | 異常系 | 新規タグが255文字を超える場合は作成できない | `test_coach_cannot_create_course_with_new_tags_longer_than_255_characters` |
 
@@ -95,6 +104,9 @@ Course に関連するが、別機能（受講登録・レビュー・小テス�
 | 正常系 | `image`と`remove_image`を同時に送った場合は新しい画像が優先される | `test_new_image_upload_takes_precedence_over_remove_image_checkbox` |
 | 異常系 | 自分の他コースと同じタイトルには更新できない | `test_coach_cannot_update_course_with_title_already_used_by_another_own_course` |
 | 異常系 | 新規タグが255文字を超える場合は更新できない | `test_coach_cannot_update_course_with_new_tags_longer_than_255_characters` |
+| 異常系 | タグ同期が失敗すると更新がロールバックされ、新しい画像は削除・旧画像は残る | `test_course_update_is_rolled_back_and_new_image_removed_when_tag_sync_fails` |
+| 異常系 | バリデーション通過後にtitleの一意制約違反が起きた場合、`title` エラーで返す | `test_update_shows_title_error_when_unique_constraint_is_violated_after_validation` |
+| 異常系 | 画像アップロード失敗時は `image` エラーで返し、コースは変更されない | `test_update_shows_image_error_when_image_upload_fails` |
 
 ### 進捗率計算（`Course::getProgressRatesForUsers()`）
 
@@ -120,6 +132,7 @@ Course に関連するが、別機能（受講登録・レビュー・小テス�
 - **Form Request の個別バリデーション**: `StoreCourseRequest` / `UpdateCourseRequest` のうち、`title` の重複チェックと `new_tags` の255文字超のみがテスト対象。必須項目欠落（title/category_id/description/difficulty/status）、`category_id` が存在しない値、`difficulty`/`status` の許容値外、画像の形式・サイズ超過（`StoreCourseRequest`）は未テスト。
 - **一覧表示の絞り込み**: `difficulty` パラメータによる絞り込みは実装済みだが未テスト。下書き・アーカイブ済みコースが一覧に表示されないことを直接検証するテストもない（`status=published` 固定のため間接的には保証されている）。
 - **検索の対象範囲**: `search` はタイトル・説明の両方に一致するが、説明文側のマッチは未テスト。
-- **コースタイトルの一意性がDBレベルで保証されていない**: `database/migrations/2024_01_15_000003_create_courses_table.php` の `title` 列にunique制約がなく、「同一コーチ内で重複不可」は `StoreCourseRequest`/`UpdateCourseRequest` の `Rule::unique()` のみに依存している。同時リクエストでの競合（race condition）を防げない。
+- **slug 競合時のリトライが未テスト**: `CourseService` は slug の unique 違反時に最大3回リトライするが、同時リクエストの再現が難しく専用のテストがない。slug 違反の判定もエラーメッセージ文字列に依存している。
+- **`UpdateCourseRequest::authorize()` が常に true**: Controller の `authorize('update')` より先にバリデーションが走るため、他人のコースにバリデーションエラーの入力を送ると403ではなくバリデーションエラーになる（未テスト・未対応）。
 - **`description` に長さ上限のバリデーションがない**: DBは `text` 型（最大65,535文字）なので実害は小さいが、上限を超える入力時の挙動は未検証。
 - **`tags.name` にunique制約がない**: 同名で異なるslugのタグが複数作成されうる（表記ゆれ由来、低優先度）。
