@@ -903,6 +903,44 @@ class CourseTest extends TestCase
         ]);
     }
 
+    public function test_student_cannot_view_course_edit_form(): void
+    {
+        $course = Course::factory()->create([
+            'user_id' => $this->coach->id,
+            'category_id' => $this->category->id,
+            'status' => 'published',
+        ]);
+
+        $response = $this->actingAs($this->student)->get("/coach/courses/{$course->id}/edit");
+
+        $response->assertStatus(403);
+    }
+
+    public function test_student_cannot_update_course(): void
+    {
+        $course = Course::factory()->create([
+            'user_id' => $this->coach->id,
+            'category_id' => $this->category->id,
+            'title' => '更新前タイトル',
+            'status' => 'published',
+        ]);
+
+        $response = $this->actingAs($this->student)->put("/coach/courses/{$course->id}", [
+            'title' => '生徒による更新',
+            'category_id' => $this->category->id,
+            'description' => '更新された説明文です。',
+            'difficulty' => 'intermediate',
+            'status' => 'archived',
+        ]);
+
+        $response->assertStatus(403);
+        $this->assertDatabaseHas('courses', [
+            'id' => $course->id,
+            'title' => '更新前タイトル',
+            'status' => 'published',
+        ]);
+    }
+
     // NOTE: 管理者もrole:coachミドルウェアで/coach配下全体から弾かれ、更新手段を持たない。
     // 作成時と同様、意図した仕様か要確認。
     public function test_admin_cannot_update_course(): void
@@ -1043,6 +1081,35 @@ class CourseTest extends TestCase
         $response = $this->actingAs($this->coach)->delete("/coach/courses/{$course->id}");
 
         $response->assertStatus(403);
+    }
+
+    public function test_student_cannot_delete_course(): void
+    {
+        $course = Course::factory()->create([
+            'user_id' => $this->coach->id,
+            'category_id' => $this->category->id,
+            'status' => 'published',
+        ]);
+
+        $response = $this->actingAs($this->student)->delete("/coach/courses/{$course->id}");
+
+        $response->assertStatus(403);
+        $this->assertDatabaseHas('courses', ['id' => $course->id]);
+    }
+
+    public function test_student_enrolled_in_course_cannot_delete_it(): void
+    {
+        $course = Course::factory()->create([
+            'user_id' => $this->coach->id,
+            'category_id' => $this->category->id,
+            'status' => 'published',
+        ]);
+        Enrollment::factory()->create(['user_id' => $this->student->id, 'course_id' => $course->id]);
+
+        $response = $this->actingAs($this->student)->delete("/coach/courses/{$course->id}");
+
+        $response->assertStatus(403);
+        $this->assertDatabaseHas('courses', ['id' => $course->id]);
     }
 
     // NOTE: /coach/courses/{id} 経由では管理者も role:coach ミドルウェアで弾かれ削除できない。
